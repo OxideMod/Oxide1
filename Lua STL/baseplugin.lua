@@ -27,7 +27,8 @@ function BASE:OnRunCommand( arg )
 		local b, res = pcall( data.Callback, self, arg )
 		if (not b) then
 			arg:ReplyWith( "Lua error handling command: " .. tostring( res ) )
-			error( "Lua error handling console command '" .. cmd .. "': " .. tostring( res ) )
+			error( "Lua error handling console command '" .. cmd .. "'!" )
+			util.ReportError( res )
 		else
 			if (res ~= nil) then return res end
 		end
@@ -39,7 +40,8 @@ function BASE:OnChatCommand( netuser, cmd, args )
 		local b, res = pcall( func, self, netuser, cmd, args )
 		if (not b) then
 			rust.SendChatToUser( netuser, "Uh oh - a Lua error occured while running that command!" )
-			error( "Lua error handling chat command '" .. cmd .. "': " .. tostring( res ) )
+			error( "Lua error handling chat command '" .. cmd .. "'!" )
+			util.ReportError( res )
 		end
 		return true
 	end

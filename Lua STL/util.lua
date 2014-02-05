@@ -142,16 +142,18 @@ function util.FindOverload( arr, typelist, name )
 		if (name and methodinfo.Name == name) then
 			--print( "TESTING" )
 			local plist = methodinfo:GetParameters()
-			local found = true
-			for j=1, plist.Length do
-				local paraminfo = plist[j - 1]
-				local othertype = typesystem.TypeFromMetatype( typelist[j] )
-				if (paraminfo.ParameterType ~= othertype) then
-					found = false
-					break
+			if (plist.Length == #typelist) then
+				local found = true
+				for j=1, plist.Length do
+					local paraminfo = plist[j - 1]
+					local othertype = typesystem.TypeFromMetatype( typelist[j] )
+					if (paraminfo.ParameterType ~= othertype) then
+						found = false
+						break
+					end
 				end
+				if (found) then return methodinfo end
 			end
-			if (found) then return methodinfo end
 		end
 	end
 end
@@ -190,4 +192,50 @@ function util.ReportError( err )
 			--error( tostring( err ) )
 		--end
 	end
+end
+
+function util.ArraySet( arr, idx, metatype, value )
+	local typ = typesystem.TypeFromMetatype( metatype )
+	cs.convertandsetonarray( arr, idx, value, typ )
+end
+
+function util.PrintArray( arr )
+	print( arr )
+	for i=0, arr.Length - 1 do
+		print( tostring(i) .. " = " .. tostring(arr[i]) .. " [" .. tostring(cs.getelementtype(arr, i)) .. "]" )
+	end
+end
+
+function util.GetTime()
+	return cs.gettimestamp()
+end
+
+function util.LoadString( str, name )
+	local b, res = pcall( cs.loadstring, str, name or "" )
+	return b, res
+end
+
+local log_print, log_error
+local OldPrint = print
+local OldError = error
+local function NewPrint( obj )
+	OldPrint( obj )
+	log_print[ #log_print + 1 ] = tostring( obj )
+end
+local function NewError( obj )
+	OldError( obj )
+	log_error[ #log_error + 1 ] = tostring( obj )
+end
+
+function util.BeginCapture()
+	print = NewPrint
+	error = NewError
+	log_print = {}
+	log_error = {}
+end
+
+function util.EndCapture()
+	print = OldPrint
+	error = OldError
+	return log_print, log_error
 end

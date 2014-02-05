@@ -44,7 +44,7 @@ namespace Oxide
                 if (response == null)
                 {
                     // Uhh panic what do we do
-                    Main.LogError("AsyncWebRequest panic: Response is null!");
+                    Logger.Error("AsyncWebRequest panic: Response is null!");
                     return;
                 }
                 //Main.Log("Reading response stream...");
@@ -67,7 +67,7 @@ namespace Oxide
             }
             catch (Exception ex)
             {
-                Main.LogError(ex.ToString());
+                Logger.Error(ex.ToString());
             }
         }
 

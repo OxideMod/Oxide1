@@ -7,25 +7,21 @@ local KindFlagsType = cs.gettype( "Inventory+Slot+KindFlags, Assembly-CSharp" )
 typesystem.LoadEnum( KindType, "InventorySlotKind" )
 typesystem.LoadEnum( KindFlagsType, "InventorySlotKindFlags" )
 
---local RustNoticePopup = static( Rust.Rust.Notice, "Popup" )
---local PlayerClientAll = static_property_get( RustFirstPass.PlayerClient, "All" )
---local NetUserFind = static( RustFirstPass.NetUser, "Find" )
---local ConsoleNetworkerBroadcast = static( Rust.ConsoleNetworker, "Broadcast" )
---local ConsoleNetworkerSendClientCommand = static( Rust.ConsoleNetworker, "SendClientCommand" )
---local ConsoleSystemRun = static( RustFirstPass.ConsoleSystem, "Run" )
---local NetUserUserID = property_get( RustFirstPass.NetUser, "userID", true )
 local NetUserUserID = util.GetPropertyGetter( RustFirstPass.NetUser, "userID", true )
---local NetUserUserIDs = util.GetPropertyGetter( RustFirstPass.NetUser, "userID", "string" )
 local userIDproperty = typesystem.TypeFromMetatype( RustFirstPass.NetUser ):GetProperty( "userID", bf.public_instance )
---local RustServerManagementGet = static( Rust.RustServerManagement, "Get" )
---local DatablockDictionaryGetByName = static( Rust.DatablockDictionary, "GetByName" )
---local DefineSlotPreferenceOverloads = util.GetStaticMethod( cs.gettype( "Inventory+Slot+Preference, Assembly-CSharp" ), "Define" )
---local DefineSlotPreferenceMethod = util.FindOverload( DefineSlotPreferenceOverloads, { KindType, System.Boolean, KindFlagsType } )
 local DefineSlotPreferenceMethod = util.FindOverloadedMethod( cs.gettype( "Inventory+Slot+Preference, Assembly-CSharp" ), "Define", bf.public_static, { KindType, System.Boolean, KindFlagsType } )
 rust = {}
+local RustNoticeTemplate = { RustFirstPass.NetUser, "string", "number" }
 function rust.Notice( netuser, text, duration )
-	--RustNoticePopup( netuser.networkPlayer, "   ", text, duration or 4.0 )
+	duration = duration or 4.0
+	if (not validate.Args( "rust.Notice", RustNoticeTemplate, netuser, text, duration )) then return end
 	Rust.Rust.Notice.Popup( netuser.networkPlayer, "   ", text, duration or 4.0 )
+end
+local RustInventoryNoticeTemplate = { RustFirstPass.NetUser, "string" }
+function rust.InventoryNotice( netuser, text )
+	if (not validate.Args( "rust.InventoryNotice", RustInventoryNoticeTemplate, netuser, text )) then return end
+	--RustNoticePopup( netuser.networkPlayer, "   ", text, duration or 4.0 )
+	Rust.Rust.Notice.Inventory( netuser.networkPlayer, text )
 end
 function rust.GetAllNetUsers()
 	--local pclist = PlayerClientAll()

@@ -325,6 +325,33 @@ namespace Oxide {
         
         /// <summary>
         ///   Looks up a localized string similar to -- Oxide - Lua Standard Library
+        ///-- validate.lua - validate library
+        ///
+        ///
+        ///validate = {}
+        ///
+        ///local function MatchType( obj, template )
+        ///	if (obj == nil) then return template == &quot;any&quot; or template == &quot;nil&quot; end
+        ///	if (type( obj ) == template) then return true
+        ///	local typ = typesystem.GetTypeFromMetatype( template )
+        ///	if (obj.GetType) then return obj:GetType() == typ end
+        ///	return false
+        ///end
+        ///
+        ///local function TypeToString( template )
+        ///	if (type( template ) == &quot;string&quot;) then
+        ///		return template
+        ///	else
+        ///		local typ = t [rest of string was truncated]&quot;;.
+        /// </summary>
+        internal static string validate {
+            get {
+                return ResourceManager.GetString("validate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to -- Oxide - Lua Standard Library
         ///-- webrequest.lua - webrequest library
         ///
         ///

@@ -44,15 +44,16 @@
   <ItemGroup>
     <Compile Include="AsyncWebRequest.cs" />
     <Compile Include="Datafile.cs" />
+    <Compile Include="Logger.cs" />
     <Compile Include="LuaOxideSTL.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>LuaOxideSTL.resx</DependentUpon>
     </Compile>
     <Compile Include="Main.cs" />
-    <Compile Include="MSILTest.cs" />
     <Compile Include="OxideComponent.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ServerInitHook.cs" />
     <Compile Include="Timer.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -71,6 +72,7 @@
     <None Include="Lua STL\timer.lua" />
     <None Include="Lua STL\type.lua" />
     <None Include="Lua STL\util.lua" />
+    <None Include="Lua STL\validate.lua" />
     <None Include="Lua STL\webrequest.lua" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

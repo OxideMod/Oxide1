@@ -189,6 +189,19 @@ function typesystem.GetField( metatype, name, bf )
 	return Getter, Setter
 end
 
+function typesystem.GetProperty( metatype, name, bf )
+	local typ = typesystem.TypeFromMetatype( metatype )
+	local prop = typ:GetProperty( name, bf )
+	if (not prop) then return end
+	local function Getter( obj )
+		return prop:GetValue( obj, nil )
+	end
+	local function Setter( obj, val )
+		return prop:SetValue( obj, val, nil )
+	end
+	return Getter, Setter
+end
+
 local metaNamespace = {}
 function metaNamespace.__index( t, k )
 	local global = rawget( t, "_global" )

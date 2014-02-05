@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 using NLua;
 
@@ -34,17 +35,6 @@ namespace Oxide
 
         #region Utility
 
-        public static void Log(string message)
-        {
-            Debug.Log(string.Format("[Oxide] {0}", message));
-            File.AppendAllText(GetPath("oxidelog.txt"), message + Environment.NewLine);
-        }
-        public static void LogError(string message)
-        {
-            Debug.LogError(string.Format("[Oxide] {0}", message));
-            File.AppendAllText(GetPath("oxidelog.txt"), string.Format("ERROR: {0}{1}", message, Environment.NewLine));
-        }
-
         private static string serverpath;
 
         public static string GetPath(string filename)
@@ -69,8 +59,9 @@ namespace Oxide
         private GameObject oxideobject;
 
         private HashSet<Timer> timers;
-        private HashSet<Timer> timers_toremove;
         private HashSet<AsyncWebRequest> webrequests;
+
+        private string currentplugin;
 
         private Main()
         {
@@ -90,8 +81,7 @@ namespace Oxide
                         }
                         catch (Exception ex)
                         {
-                            LogError("Failed to read server instance directory from command line!");
-                            LogError(ex.ToString());
+                            Logger.Error("Failed to read server instance directory from command line!", ex);
                         }
                     }
                 }
@@ -100,18 +90,22 @@ namespace Oxide
                 if (!Directory.Exists(serverpath)) Directory.CreateDirectory(serverpath);
                 if (!Directory.Exists(GetPath("plugins"))) Directory.CreateDirectory(GetPath("plugins"));
                 if (!Directory.Exists(GetPath("data"))) Directory.CreateDirectory(GetPath("data"));
-                Log(string.Format("Loading at {0}...", serverpath));
+                if (!Directory.Exists(GetPath("logs"))) Directory.CreateDirectory(GetPath("logs"));
+                Logger.Message(string.Format("Loading at {0}...", serverpath));
 
                 // Initialise the Unity component
                 oxideobject = new GameObject("Oxide");
                 oxidecomponent = oxideobject.AddComponent<OxideComponent>();
                 oxidecomponent.Oxide = this;
 
+                // Hook things that we can't hook using the IL injector
+                var serverinit = UnityEngine.Object.FindObjectOfType(Type.GetType("ServerInit, Assembly-CSharp")) as MonoBehaviour;
+                serverinit.gameObject.AddComponent<ServerInitHook>();
+
                 // Initialise needed maps and collections
                 datafiles = new Dictionary<string, Datafile>();
                 plugins = new Dictionary<string, LuaTable>();
                 timers = new HashSet<Timer>();
-                timers_toremove = new HashSet<Timer>();
                 webrequests = new HashSet<AsyncWebRequest>();
 
                 // Initialise the lua state
@@ -122,6 +116,7 @@ namespace Oxide
                 lua["dofile"] = null;
                 lua["package"] = null;
                 lua["luanet"] = null;
+                lua["load"] = null;
 
                 // Register functions
                 lua.NewTable("cs");
@@ -154,9 +149,12 @@ namespace Oxide
                 RegisterFunction("cs.new", "lua_New");
                 RegisterFunction("cs.newarray", "lua_NewArray");
                 RegisterFunction("cs.convertandsetonarray", "lua_ConvertAndSetOnArray");
+                RegisterFunction("cs.getelementtype", "lua_GetElementType");
                 RegisterFunction("cs.newtimer", "lua_NewTimer");
                 RegisterFunction("cs.sendwebrequest", "lua_SendWebRequest");
                 RegisterFunction("cs.throwexception", "lua_ThrowException");
+                RegisterFunction("cs.gettimestamp", "lua_GetTimestamp");
+                RegisterFunction("cs.loadstring", "lua_LoadString");
 
                 // Register constants
                 lua.NewTable("bf");
@@ -166,7 +164,7 @@ namespace Oxide
                 lua["bf.private_static"] = BindingFlags.NonPublic | BindingFlags.Static;
 
                 // Load the standard library
-                Log("Loading standard library...");
+                Logger.Message("Loading standard library...");
                 lua.LoadString(LuaOxideSTL.csfunc, "csfunc.stl").Call();
                 lua.LoadString(LuaOxideSTL.json, "json.stl").Call();
                 lua.LoadString(LuaOxideSTL.util, "util.stl").Call();
@@ -177,13 +175,14 @@ namespace Oxide
                 lua.LoadString(LuaOxideSTL.plugins, "plugins.stl").Call();
                 lua.LoadString(LuaOxideSTL.timer, "timer.stl").Call();
                 lua.LoadString(LuaOxideSTL.webrequest, "webrequest.stl").Call();
+                lua.LoadString(LuaOxideSTL.validate, "validate.stl").Call();
 
                 // Read back required functions
                 callunpacked = lua["callunpacked"] as LuaFunction;
                 createplugin = lua["createplugin"] as LuaFunction;
 
                 // Load all plugins
-                Log("Loading plugins...");
+                Logger.Message("Loading plugins...");
                 string[] files = Directory.GetFiles(GetPath("plugins"), "*.lua");
                 foreach (string file in files)
                 {
@@ -194,6 +193,7 @@ namespace Oxide
                     plugininstance["Name"] = pluginname;
                     try
                     {
+                        currentplugin = pluginname;
                         string code = File.ReadAllText(GetPath(file));
                         lua.LoadString(code, file).Call();
                         plugins.Add(pluginname, plugininstance);
@@ -201,8 +201,7 @@ namespace Oxide
                     }
                     catch (NLua.Exceptions.LuaScriptException luaex)
                     {
-                        LogError(string.Format("Failed to load plugin '{0}'! ({1})", file, luaex.Message));
-                        LogError(luaex.StackTrace);
+                        Logger.Error(string.Format("Failed to load plugin '{0}'!", file), luaex);
                     }
                 }
 
@@ -224,7 +223,7 @@ namespace Oxide
                                 {
                                     if (!plugins.ContainsKey((string)value) || toremove.Contains((string)value))
                                     {
-                                        LogError(string.Format("The plugin '{0}' depends on missing or unloaded plugin '{1}' and won't be loaded!", pair.Key, value));
+                                        Logger.Error(string.Format("The plugin '{0}' depends on missing or unloaded plugin '{1}' and won't be loaded!", pair.Key, value));
                                         toremove.Add(pair.Key);
                                         break;
                                     }
@@ -243,26 +242,25 @@ namespace Oxide
             }
             catch (Exception ex)
             {
-                LogError(string.Format("Error loading oxide! ({0})", ex));
-                LogError(ex.StackTrace);
+                Logger.Error(string.Format("Error loading oxide!"), ex);
             }
         }
 
+        /// <summary>
+        /// Called by a Unity component, updates Oxide
+        /// </summary>
         public void Update()
         {
-            foreach (Timer timer in timers)
+            // Update timers
+            foreach (Timer timer in timers.ToArray())
                 timer.Update();
-            foreach (Timer timer in timers_toremove)
-                timers.Remove(timer);
-            timers_toremove.Clear();
-            HashSet<AsyncWebRequest> toremove = new HashSet<AsyncWebRequest>();
-            foreach (AsyncWebRequest req in webrequests)
+
+            // Update old web requests
+            foreach (AsyncWebRequest req in webrequests.ToArray())
             {
                 req.Update();
-                if (req.Complete) toremove.Add(req);
+                if (req.Complete) webrequests.Remove(req);
             }
-            foreach (AsyncWebRequest req in toremove)
-                webrequests.Remove(req);
         }
 
         private void RegisterFunction(string path, string name)
@@ -276,14 +274,12 @@ namespace Oxide
 
         private void lua_Print(string message)
         {
-            Log(message);
+            Logger.Message(message);
         }
         private void lua_Error(string message)
         {
-            LogError(message);
+            Logger.Error(string.Format("{0}: {1}", currentplugin, message));
         }
-
-        
 
         private object lua_CallPlugins(string methodname, LuaTable args, int argn)
         {
@@ -311,7 +307,7 @@ namespace Oxide
 
             if (candidates.Count == 0)
             {
-                LogError(string.Format("Failed to locate static method {0} on type {1}!", methodname, typ));
+                Logger.Error(string.Format("Failed to locate static method {0} on type {1}!", methodname, typ));
                 return 0;
             }
             else
@@ -360,7 +356,7 @@ namespace Oxide
             var property = typ.GetProperty(propertyname, BindingFlags.Static | BindingFlags.Public);
             if (property == null)
             {
-                LogError(string.Format("Failed to locate static property {0} on type {1}!", propertyname, typ));
+                Logger.Error(string.Format("Failed to locate static property {0} on type {1}!", propertyname, typ));
                 return;
             }
             lua[path] = property;
@@ -370,7 +366,7 @@ namespace Oxide
             var property = typ.GetProperty(propertyname, BindingFlags.Instance | BindingFlags.Public);
             if (property == null)
             {
-                LogError(string.Format("Failed to locate instance property {0} on type {1}!", propertyname, typ));
+                Logger.Error(string.Format("Failed to locate instance property {0} on type {1}!", propertyname, typ));
                 return;
             }
             lua[path] = property;
@@ -380,7 +376,7 @@ namespace Oxide
             var field = typ.GetField(fieldname, BindingFlags.Static | BindingFlags.Public);
             if (field == null)
             {
-                LogError(string.Format("Failed to locate static field {0} on type {1}!", fieldname, typ));
+                Logger.Error(string.Format("Failed to locate static field {0} on type {1}!", fieldname, typ));
                 return;
             }
             lua[path] = field;
@@ -390,7 +386,7 @@ namespace Oxide
             var field = typ.GetField(fieldname, BindingFlags.Instance | BindingFlags.Public);
             if (field == null)
             {
-                LogError(string.Format("Failed to locate instance field {0} on type {1}!", fieldname, typ));
+                Logger.Error(string.Format("Failed to locate instance field {0} on type {1}!", fieldname, typ));
                 return;
             }
             lua[path] = field;
@@ -428,7 +424,7 @@ namespace Oxide
             if (property == null) return 0;
             if (property.PropertyType != typeof(ulong))
             {
-                LogError(string.Format("Failed to interpret ulong property {0} as int!", property.Name));
+                Logger.Error(string.Format("Failed to interpret ulong property {0} as int!", property.Name));
                 return 0;
             }
             ulong value = (ulong)property.GetValue(obj, null);
@@ -439,7 +435,7 @@ namespace Oxide
             if (property == null) return null;
             if (property.PropertyType != typeof(ulong))
             {
-                LogError(string.Format("Failed to interpret ulong property {0} as string!", property.Name));
+                Logger.Error(string.Format("Failed to interpret ulong property {0} as string!", property.Name));
                 return null;
             }
             ulong value = (ulong)property.GetValue(obj, null);
@@ -450,7 +446,7 @@ namespace Oxide
             if (field == null) return 0;
             if (field.FieldType != typeof(ulong))
             {
-                LogError(string.Format("Failed to interpret ulong field {0} as int!", field.Name));
+                Logger.Error(string.Format("Failed to interpret ulong field {0} as int!", field.Name));
                 return 0;
             }
             ulong value = (ulong)field.GetValue(obj);
@@ -461,7 +457,7 @@ namespace Oxide
             if (field == null) return null;
             if (field.FieldType != typeof(ulong))
             {
-                LogError(string.Format("Failed to interpret ulong field {0} as string!", field.Name));
+                Logger.Error(string.Format("Failed to interpret ulong field {0} as string!", field.Name));
                 return null;
             }
             ulong value = (ulong)field.GetValue(obj);
@@ -493,10 +489,10 @@ namespace Oxide
 
         private void lua_Dump(GameObject obj)
         {
-            Log(string.Format("Dumping all components of {0}...", obj));
+            Logger.Message(string.Format("Dumping all components of {0}...", obj));
             foreach (Component c in obj.GetComponents(typeof(Component)))
             {
-                Log(c.ToString());
+                Logger.Message(c.ToString());
             }
         }
 
@@ -527,6 +523,7 @@ namespace Oxide
         {
             bool blocked = false;
             if (fullname.Contains("Screen")) blocked = true;
+            if (fullname.Contains("ServerFileSystem")) blocked = true;
             if (fullname.Contains("System") && !fullname.Contains("Assembly-CSharp"))
             {
                 string[] spl = fullname.Split(',')[0].Split('.');
@@ -537,7 +534,7 @@ namespace Oxide
             }
             if (blocked)
             {
-                Log(string.Format("Attempt to access blocked type '{0}'!", fullname));
+                Logger.Error(string.Format("Attempt to access blocked type '{0}'!", fullname));
                 return null;
             }
             return Type.GetType(fullname);
@@ -546,7 +543,7 @@ namespace Oxide
         {
             if (typ == null)
             {
-                LogError(string.Format("Failed to make generic type (typ is null)!"));
+                Logger.Error(string.Format("Failed to make generic type (typ is null)!"));
                 return null;
             }
             Type[] targs = new Type[argn];
@@ -555,14 +552,14 @@ namespace Oxide
                 object obj = args[i + 1];
                 if (obj == null)
                 {
-                    LogError(string.Format("Failed to make generic type {0} (an arg is null)!", typ));
+                    Logger.Error(string.Format("Failed to make generic type {0} (an arg is null)!", typ));
                     return null;
                 }
                 else if (obj is Type)
                     targs[i] = obj as Type;
                 else
                 {
-                    LogError(string.Format("Failed to make generic type {0} (an arg is invalid)!", typ));
+                    Logger.Error(string.Format("Failed to make generic type {0} (an arg is invalid)!", typ));
                     return null;
                 }
             }
@@ -572,7 +569,7 @@ namespace Oxide
             }
             catch (Exception ex)
             {
-                LogError(string.Format("Failed to make generic type {0} (exception: {1})!", typ, ex));
+                Logger.Error(string.Format("Failed to make generic type {0}", typ), ex);
                 return null;
             }
         }
@@ -580,7 +577,7 @@ namespace Oxide
         {
             if (typ == null)
             {
-                LogError(string.Format("Failed to instantiate object (typ is null)!"));
+                Logger.Error(string.Format("Failed to instantiate object (typ is null)!"));
                 return null;
             }
             if (args == null)
@@ -591,7 +588,7 @@ namespace Oxide
                 }
                 catch (Exception ex)
                 {
-                    LogError(string.Format("Failed to instantiate {0} (exception: {1})!", typ, ex));
+                    Logger.Error(string.Format("Failed to instantiate {0} (exception: {1})!", typ, ex));
                     return null;
                 }
             }
@@ -606,7 +603,7 @@ namespace Oxide
                 }
                 catch (Exception ex)
                 {
-                    LogError(string.Format("Failed to instantiate {0} (exception: {1})!", typ, ex));
+                    Logger.Error(string.Format("Failed to instantiate {0} (exception: {1})!", typ, ex));
                     return null;
                 }
             }
@@ -626,12 +623,13 @@ namespace Oxide
                 }
                 catch (Exception ex)
                 {
-                    LogError(string.Format("Error in timer: {0}", ex));
+                    //Logger.Error(string.Format("Error in timer ({1}): {0}", ex));
+                    Logger.Error(string.Format("Error in timer ({0})", currentplugin), ex);
                 }
             });
             Timer tmr = Timer.Create(delay, numiterations, callback);
             timers.Add(tmr);
-            tmr.OnFinished += (t) => timers_toremove.Add(t);
+            tmr.OnFinished += (t) => timers.Remove(t);
             return tmr;
         }
 
@@ -651,7 +649,8 @@ namespace Oxide
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError(string.Format("Error in webrequest callback: {0}", ex));
+                    //Debug.LogError(string.Format("Error in webrequest callback: {0}", ex));
+                    Logger.Error(string.Format("Error in webrequest callback ({0})", currentplugin), ex);
                 }
             };
             return true;
@@ -660,6 +659,22 @@ namespace Oxide
         private void lua_ThrowException(string message)
         {
             throw new Exception(message);
+        }
+
+        private Type lua_GetElementType(Array arr, int idx)
+        {
+            return arr.GetValue(idx).GetType();
+        }
+
+        private static readonly DateTime epoch = new DateTime(1970, 1, 1);
+        private uint lua_GetTimestamp()
+        {
+            DateTime now = DateTime.Now;
+            return (uint)now.Subtract(epoch).Seconds;
+        }
+        private LuaFunction lua_LoadString(string str, string name)
+        {
+            return lua.LoadString(str, name);
         }
 
         #endregion
@@ -677,6 +692,7 @@ namespace Oxide
             plugininstance["Name"] = name;
             try
             {
+                currentplugin = name;
                 string code = File.ReadAllText(GetPath(filename));
                 lua.LoadString(code, filename).Call();
                 plugins.Add(name, plugininstance);
@@ -684,8 +700,9 @@ namespace Oxide
             }
             catch (NLua.Exceptions.LuaScriptException luaex)
             {
-                LogError(string.Format("Failed to reload plugin '{0}'! ({1})", name, luaex.Message));
-                LogError(luaex.StackTrace);
+                //LogError(string.Format("Failed to reload plugin '{0}'! ({1})", name, luaex.Message));
+                //LogError(luaex.StackTrace);
+                Logger.Error(string.Format("Failed to reload plugin '{0}'!", name), luaex);
             }
             CallSpecificPlugin(name, "Init", null);
             CallSpecificPlugin(name, "PostInit", null);
@@ -721,6 +738,7 @@ namespace Oxide
                 if (func != null)
                 {
                     argstable[1] = pair.Value;
+                    currentplugin = pair.Key;
                     try
                     {
                         object[] result = callunpacked.Call(func, argstable);
@@ -732,17 +750,19 @@ namespace Oxide
                     }
                     catch (NLua.Exceptions.LuaScriptException luaex)
                     {
-                        LogError(string.Format("Lua error ({0}:{2}): {1}", pair.Key, luaex.Message, luaex.Source));
+                        /*LogError(string.Format("Lua error ({0}:{2}): {1}", pair.Key, luaex.Message, luaex.Source));
                         LogError(luaex.StackTrace);
                         if (luaex.InnerException != null)
-                            LogError(luaex.InnerException.ToString());
+                            LogError(luaex.InnerException.ToString());*/
+                        Logger.Error(string.Format("Lua error ({0}:{1})", pair.Key, luaex.Source), luaex);
                     }
                     catch (Exception ex)
                     {
-                        LogError(string.Format("Lua error ({0}): {1}", pair.Key, ex));
+                        /*LogError(string.Format("Lua error ({0}): {1}", pair.Key, ex));
                         LogError(ex.StackTrace);
                         if (ex.InnerException != null)
-                            LogError(ex.InnerException.ToString());
+                            LogError(ex.InnerException.ToString());*/
+                        Logger.Error(string.Format("Lua error ({0})", pair.Key), ex);
                     }
                 }
             }
@@ -750,6 +770,7 @@ namespace Oxide
         }
         private object CallSpecificPlugin(string pluginname, string name, object[] args)
         {
+            string callerplugin = currentplugin;
             LuaTable plugin;
             if (!plugins.TryGetValue(pluginname, out plugin)) return null;
             LuaFunction func = plugin[name] as LuaFunction;
@@ -761,6 +782,7 @@ namespace Oxide
                     for (int i = 0; i < args.Length; i++)
                         argstable[i + 2] = args[i];
                 argstable[1] = plugin;
+                currentplugin = pluginname;
                 try
                 {
                     object[] result = callunpacked.Call(func, argstable);
@@ -768,7 +790,8 @@ namespace Oxide
                 }
                 catch (Exception ex)
                 {
-                    LogError(string.Format("Lua error ({0}): {1}", pluginname, ex.Message));
+                    //LogError(string.Format("Lua error ({0}): {1}", pluginname, ex.Message));
+                    Logger.Error(string.Format("Lua error ({0}) (call is coming from {1})", pluginname, callerplugin), ex);
                 }
             }
             return null;

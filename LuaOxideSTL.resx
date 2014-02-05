@@ -145,6 +145,9 @@
   <data name="util" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>lua stl\util.lua;System.String, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;utf-8</value>
   </data>
+  <data name="validate" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>lua stl\validate.lua;System.String, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;utf-8</value>
+  </data>
   <data name="webrequest" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>lua stl\webrequest.lua;System.String, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;utf-8</value>
   </data>
