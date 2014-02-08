@@ -31,6 +31,13 @@ namespace Oxide
             return singleton.CallPlugin(name, args);
         }
 
+        private static object[][] arraypool = new object[16][];
+        public static object[] Array(int size)
+        {
+            if (arraypool[size] == null) arraypool[size] = new object[size];
+            return arraypool[size];
+        }
+
         #endregion
 
         #region Utility
@@ -283,7 +290,7 @@ namespace Oxide
 
         private object lua_CallPlugins(string methodname, LuaTable args, int argn)
         {
-            object[] arr = new object[argn];
+            object[] arr = Array(argn);
             for (int i = 0; i < argn; i++)
                 arr[i] = args[i + 1];
             return CallPlugin(methodname, arr);
@@ -498,7 +505,9 @@ namespace Oxide
 
         private Array lua_CreateArrayFromTable(Type arrtype, LuaTable tbl, int argn)
         {
-            Array arr = Activator.CreateInstance(arrtype.MakeArrayType(), new object[] { argn }) as Array;
+            object[] args = Array(1);
+            args[0] = argn;
+            Array arr = Activator.CreateInstance(arrtype.MakeArrayType(), args) as Array;
             for (int i = 0; i < argn; i++)
                 arr.SetValue(tbl[i + 1], i);
             return arr;
@@ -594,7 +603,7 @@ namespace Oxide
             }
             else
             {
-                object[] oargs = new object[argn];
+                object[] oargs = Array(argn);
                 for (int i = 0; i < argn; i++)
                     oargs[i] = args[i + 1];
                 try
@@ -669,8 +678,8 @@ namespace Oxide
         private static readonly DateTime epoch = new DateTime(1970, 1, 1);
         private uint lua_GetTimestamp()
         {
-            DateTime now = DateTime.Now;
-            return (uint)now.Subtract(epoch).Seconds;
+            DateTime now = DateTime.UtcNow;
+            return (uint)now.Subtract(epoch).TotalSeconds;
         }
         private LuaFunction lua_LoadString(string str, string name)
         {
