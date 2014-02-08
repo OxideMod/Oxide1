@@ -666,11 +666,11 @@ namespace Oxide
             return arr.GetValue(idx).GetType();
         }
 
-        private static readonly DateTime epoch = new DateTime(1970, 1, 1);
         private uint lua_GetTimestamp()
         {
-            DateTime now = DateTime.Now;
-            return (uint)now.Subtract(epoch).Seconds;
+            DateTime MyDate = DateTime.UtcNow;
+            TimeSpan span = (MyDate - new DateTime(1970, 1, 1, 0, 0, 0, 0));
+            return Convert.ToUInt32(span.TotalSeconds);
         }
         private LuaFunction lua_LoadString(string str, string name)
         {
