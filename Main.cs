@@ -146,6 +146,8 @@ namespace Oxide
                 RegisterFunction("cs.readulongpropertyasstring", "lua_ReadULongPropertyAsString");
                 RegisterFunction("cs.readulongfieldasuint", "lua_ReadULongFieldAsUInt");
                 RegisterFunction("cs.readulongfieldasstring", "lua_ReadULongFieldAsString");
+                RegisterFunction("cs.readpropertyandsetonarray", "lua_ReadPropertyAndSetOnArray");
+                RegisterFunction("cs.readfieldandsetonarray", "lua_ReadFieldAndSetOnArray");
                 RegisterFunction("cs.reloadplugin", "lua_ReloadPlugin");
                 RegisterFunction("cs.getdatafile", "lua_GetDatafile");
                 RegisterFunction("cs.dump", "lua_Dump");
@@ -162,6 +164,7 @@ namespace Oxide
                 RegisterFunction("cs.throwexception", "lua_ThrowException");
                 RegisterFunction("cs.gettimestamp", "lua_GetTimestamp");
                 RegisterFunction("cs.loadstring", "lua_LoadString");
+                RegisterFunction("cs.createperfcounter", "lua_CreatePerfCounter");
 
                 // Register constants
                 lua.NewTable("bf");
@@ -527,6 +530,14 @@ namespace Oxide
             value = Convert.ChangeType(value, newtype);
             arr.SetValue(value, idx);
         }
+        private void lua_ReadFieldAndSetOnArray(Array arr, int idx, FieldInfo field, object target)
+        {
+            arr.SetValue(field.GetValue(target), idx);
+        }
+        private void lua_ReadPropertyAndSetOnArray(Array arr, int idx, PropertyInfo prop, object target)
+        {
+            arr.SetValue(prop.GetValue(target, null), idx);
+        }
 
         private Type lua_GetType(string fullname)
         {
@@ -685,6 +696,10 @@ namespace Oxide
         {
             return lua.LoadString(str, name);
         }
+        private System.Diagnostics.PerformanceCounter lua_CreatePerfCounter(string category, string counter, string instance, bool rdonly)
+        {
+            return new System.Diagnostics.PerformanceCounter(category, counter, instance, rdonly);
+        }
 
         #endregion
 
@@ -717,8 +732,15 @@ namespace Oxide
             CallSpecificPlugin(name, "PostInit", null);
         }
 
+        private static MethodBase LuaCallFunction;
+        private static readonly Type[] LuaCallFunctionSig = new Type[] { typeof(object), typeof(object[]), typeof(Type[]) };
+        private static readonly object[] LuaCallFunctionArgs = new object[3];
         private object CallPlugin(string name, object[] args)
         {
+            if (LuaCallFunction == null)
+            {
+                LuaCallFunction = typeof(Lua).GetMethod("CallFunction", BindingFlags.NonPublic | BindingFlags.Instance, null, LuaCallFunctionSig, null);
+            }
             /*if (args == null)
                 Log(string.Format("Call to plugin method '{0}' with no args", name));
             else
@@ -736,21 +758,34 @@ namespace Oxide
                 Log(string.Format("Call to plugin method '{0}' ({1})", name, string.Concat(tmp)));
             }*/
 
-            lua.NewTable("_args");
+            /*lua.NewTable("_args");
             LuaTable argstable = lua["_args"] as LuaTable;
             if (args != null)
                 for (int i = 0; i < args.Length; i++)
-                    argstable[i + 2] = args[i];
+                    argstable[i + 2] = args[i];*/
+            object[] argsarr;
+            if (args != null)
+            {
+                argsarr = Array(1 + args.Length);
+                for (int i = 0; i < args.Length; i++)
+                    argsarr[i + 1] = args[i];
+            }
+            else
+                argsarr = Array(1);
+            LuaCallFunctionArgs[1] = argsarr;
+            LuaCallFunctionArgs[2] = null;
             foreach (var pair in plugins)
             {
                 LuaFunction func = pair.Value[name] as LuaFunction;
                 if (func != null)
                 {
-                    argstable[1] = pair.Value;
+                    LuaCallFunctionArgs[0] = func;
+                    //argstable[1] = pair.Value;
                     currentplugin = pair.Key;
+                    argsarr[0] = pair.Value;
                     try
                     {
-                        object[] result = callunpacked.Call(func, argstable);
+                        object[] result = LuaCallFunction.Invoke(lua, LuaCallFunctionArgs) as object[];
                         if (result != null && result.Length > 0)
                         {
                             //Log(string.Format("Returning result {0} from plugin call", result[0]));
@@ -777,24 +812,42 @@ namespace Oxide
             }
             return null;
         }
+        private static readonly object[] LuaCallFunctionArgs2 = new object[3];
         private object CallSpecificPlugin(string pluginname, string name, object[] args)
         {
+
             string callerplugin = currentplugin;
             LuaTable plugin;
             if (!plugins.TryGetValue(pluginname, out plugin)) return null;
             LuaFunction func = plugin[name] as LuaFunction;
             if (func != null)
             {
-                lua.NewTable("_args");
+
+                /*lua.NewTable("_args");
                 LuaTable argstable = lua["_args"] as LuaTable;
                 if (args != null)
                     for (int i = 0; i < args.Length; i++)
                         argstable[i + 2] = args[i];
-                argstable[1] = plugin;
+                argstable[1] = plugin;*/
+
+                object[] argsarr;
+                if (args != null)
+                {
+                    argsarr = Array(1 + args.Length);
+                    for (int i = 0; i < args.Length; i++)
+                        argsarr[i + 1] = args[i];
+                }
+                else
+                    argsarr = Array(1);
+                LuaCallFunctionArgs2[0] = plugin;
+                LuaCallFunctionArgs2[1] = argsarr;
+                LuaCallFunctionArgs2[2] = null;
+
                 currentplugin = pluginname;
                 try
                 {
-                    object[] result = callunpacked.Call(func, argstable);
+                    //object[] result = callunpacked.Call(func, argstable);
+                    object[] result = LuaCallFunction.Invoke(lua, LuaCallFunctionArgs) as object[];
                     if (result != null && result.Length > 0) return result[0];
                 }
                 catch (Exception ex)
@@ -803,6 +856,7 @@ namespace Oxide
                     Logger.Error(string.Format("Lua error ({0}) (call is coming from {1})", pluginname, callerplugin), ex);
                 }
             }
+            currentplugin = callerplugin;
             return null;
         }
 

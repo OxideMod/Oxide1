@@ -36,11 +36,15 @@ function rust.GetAllNetUsers()
 	end
 	return tbl
 end
+local RustNetUserFromNetPlayerTemplate = { uLink.NetworkPlayer }
 function rust.NetUserFromNetPlayer( netplayer )
+	if (not validate.Args( "rust.NetUserFromNetPlayer", RustNetUserFromNetPlayerTemplate, netplayer )) then return end
 	--return NetUserFind( netplayer )
 	return RustFirstPass.NetUser.Find( netplayer )
 end
+local RustFindNetUsersByName = { "string" }
 function rust.FindNetUsersByName( name )
+	if (not validate.Args( "rust.FindNetUsersByName", RustFindNetUsersByName, name )) then return end
 	local allnetusers = rust.GetAllNetUsers()
 	if (not allnetusers) then return false, 0 end
 	local tmp = {}
@@ -63,16 +67,22 @@ function rust.BroadcastChat( arg1, arg2 )
 		Rust.ConsoleNetworker.Broadcast( "chat.add \"Oxide\" \"" .. util.QuoteSafe( arg1 ) .. "\"" )
 	end
 end
+local RustCommunityIDToSteamID = { "number" }
 function rust.CommunityIDToSteamID( id )
+	if (not validate.Args( "rust.CommunityIDToSteamID", RustCommunityIDToSteamID, id )) then return end
 	-- STEAM_X:Y:Z
 	-- W = Z*2 + Y
 	return "STEAM_0:" .. (id % 1) .. ":" .. math.floor( id / 2 )
 end
+local RustRunServerCommand = { "string" }
 function rust.RunServerCommand( cmd )
+	if (not validate.Args( "rust.RunServerCommand", RustRunServerCommand, cmd )) then return end
 	--return ConsoleSystemRun( cmd )
 	return RustFirstPass.ConsoleSystem.Run( cmd )
 end
+local RustRunClientCommand = { RustFirstPass.NetUser, "string" }
 function rust.RunClientCommand( netuser, cmd )
+	if (not validate.Args( "rust.RunClientCommand", RustRunClientCommand, netuser, cmd )) then return end
 	--ConsoleNetworkerSendClientCommand( netuser.networkPlayer, cmd )
 	Rust.ConsoleNetworker.SendClientCommand( netuser.networkPlayer, cmd )
 end
@@ -85,11 +95,15 @@ function rust.SendChatToUser( netuser, arg1, arg2 )
 		Rust.ConsoleNetworker.SendClientCommand( netuser.networkPlayer, "chat.add \"Oxide\" \"" .. util.QuoteSafe( arg1 ) .. "\"" )
 	end
 end
+local RustGetUserID = { RustFirstPass.NetUser }
 function rust.GetUserID( netuser )
+	if (not validate.Args( "rust.GetUserID", RustGetUserID, netuser )) then return end
 	local result = NetUserUserID( netuser )
 	return tostring( result )
 end
+local RustGetLongUserID = { RustFirstPass.NetUser }
 function rust.GetLongUserID( netuser )
+	if (not validate.Args( "rust.GetLongUserID", RustGetLongUserID, netuser )) then return end
 	return cs.readulongpropertyasstring( userIDproperty, netuser )
 end
 
@@ -97,7 +111,9 @@ function rust.ServerManagement()
 	--return RustServerManagementGet()
 	return Rust.RustServerManagement.Get()
 end
+local RustGetDatablockByName = { "string" }
 function rust.GetDatablockByName( name )
+	if (not validate.Args( "rust.GetDatablockByName", RustGetDatablockByName, name )) then return end
 	--return DatablockDictionaryGetByName( name )
 	return Rust.DatablockDictionary.GetByName( name )
 end

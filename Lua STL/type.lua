@@ -176,10 +176,11 @@ function typesystem.MakeType( typ )
 	return o
 end
 
-function typesystem.GetField( metatype, name, bf )
+function typesystem.GetField( metatype, name, bf, raw )
 	local typ = typesystem.TypeFromMetatype( metatype )
 	local field = typ:GetField( name, bf )
 	if (not field) then return end
+	if (raw) then return field end
 	local function Getter( obj )
 		return field:GetValue( obj )
 	end
@@ -189,10 +190,11 @@ function typesystem.GetField( metatype, name, bf )
 	return Getter, Setter
 end
 
-function typesystem.GetProperty( metatype, name, bf )
+function typesystem.GetProperty( metatype, name, bf, raw )
 	local typ = typesystem.TypeFromMetatype( metatype )
 	local prop = typ:GetProperty( name, bf )
 	if (not prop) then return end
+	if (raw) then return prop end
 	local function Getter( obj )
 		return prop:GetValue( obj, nil )
 	end
@@ -273,3 +275,4 @@ typesystem.LoadNamespace( "System" )
 typesystem.LoadNamespace( "UnityEngine", "UnityEngine" )
 typesystem.LoadNamespace( "Rust", "Assembly-CSharp", true )
 typesystem.LoadNamespace( "RustFirstPass", "Assembly-CSharp-firstpass", true )
+typesystem.LoadNamespace( "uLink", "uLink" )

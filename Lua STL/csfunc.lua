@@ -33,7 +33,8 @@ for k, v in pairs( oldcs ) do
 	local function Wrapper( ... )
 		local b, res = pcall( v, ... )
 		if (b) then return res end
-		error( "A .NET exception was thrown trying to call cs." .. k .. "!" )
+		local tbl = debug.getinfo( 3, "Sl" )
+		error( tbl.short_src .. ":" .. tbl.currentline .. " - A .NET exception was thrown trying to call cs." .. k .. "!" )
 		util.ReportError( res )
 	end
 	cs[ k ] = Wrapper

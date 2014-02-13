@@ -199,6 +199,14 @@ function util.ArraySet( arr, idx, metatype, value )
 	cs.convertandsetonarray( arr, idx, value, typ )
 end
 
+function util.ArraySetFromField( arr, idx, field, target )
+	cs.readfieldandsetonarray( arr, idx, field, target )
+end
+
+function util.ArraySetFromProperty( arr, idx, prop, target )
+	cs.readpropertyandsetonarray( arr, idx, prop, target )
+end
+
 function util.PrintArray( arr )
 	print( arr )
 	for i=0, arr.Length - 1 do
@@ -238,4 +246,8 @@ function util.EndCapture()
 	print = OldPrint
 	error = OldError
 	return log_print, log_error
+end
+
+function util.CreatePerformanceCounter( category, counter, instance, rdonly )
+	return cs.createperfcounter( category, counter, instance, rdonly )
 end
