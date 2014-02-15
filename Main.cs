@@ -149,6 +149,7 @@ namespace Oxide
                 RegisterFunction("cs.readpropertyandsetonarray", "lua_ReadPropertyAndSetOnArray");
                 RegisterFunction("cs.readfieldandsetonarray", "lua_ReadFieldAndSetOnArray");
                 RegisterFunction("cs.reloadplugin", "lua_ReloadPlugin");
+                RegisterFunction("cs.loadplugin", "lua_LoadPlugin");
                 RegisterFunction("cs.getdatafile", "lua_GetDatafile");
                 RegisterFunction("cs.dump", "lua_Dump");
                 RegisterFunction("cs.createarrayfromtable", "lua_CreateArrayFromTable");
@@ -479,6 +480,11 @@ namespace Oxide
             ReloadPlugin(name);
         }
 
+        private void lua_LoadPlugin(string name)
+        {
+            LoadPlugin(name);
+        }
+
         private Datafile lua_GetDatafile(string name)
         {
             if (name.Contains('.')) return null;
@@ -727,6 +733,31 @@ namespace Oxide
                 //LogError(string.Format("Failed to reload plugin '{0}'! ({1})", name, luaex.Message));
                 //LogError(luaex.StackTrace);
                 Logger.Error(string.Format("Failed to reload plugin '{0}'!", name), luaex);
+            }
+            CallSpecificPlugin(name, "Init", null);
+            CallSpecificPlugin(name, "PostInit", null);
+        }
+
+        private void LoadPlugin(string name)
+        {
+            LuaTable plugin;
+            if (plugins.TryGetValue(name, out plugin)) return;
+            string filename = (string)plugin["Filename"];
+            LuaTable plugininstance = createplugin.Call()[0] as LuaTable;
+            lua["PLUGIN"] = plugininstance;
+            plugininstance["Filename"] = filename;
+            plugininstance["Name"] = name;
+            try
+            {
+                currentplugin = name;
+                string code = File.ReadAllText(GetPath(filename));
+                lua.LoadString(code, filename).Call();
+                plugins.Add(name, plugininstance);
+                lua["PLUGIN"] = null;
+            }
+            catch (NLua.Exceptions.LuaScriptException luaex)
+            {
+                Logger.Error(string.Format("Failed to load plugin '{0}'!", name), luaex);
             }
             CallSpecificPlugin(name, "Init", null);
             CallSpecificPlugin(name, "PostInit", null);
