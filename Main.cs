@@ -742,7 +742,7 @@ namespace Oxide
         {
             LuaTable plugin;
             if (plugins.TryGetValue(name, out plugin)) return;
-            string filename = (string)plugin["Filename"];
+            string filename = Directory.GetFiles(GetPath("plugins"), name + ".lua");
             LuaTable plugininstance = createplugin.Call()[0] as LuaTable;
             lua["PLUGIN"] = plugininstance;
             plugininstance["Filename"] = filename;
