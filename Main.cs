@@ -77,10 +77,12 @@ namespace Oxide
 
                 System.Net.ServicePointManager.Expect100Continue = false;
 
+                // Allow SSL
                 System.Net.ServicePointManager.ServerCertificateValidationCallback = (object sender, System.Security.Cryptography.X509Certificates.X509Certificate certificate, System.Security.Cryptography.X509Certificates.X509Chain chain,
-                                           System.Net.Security.SslPolicyErrors sslPolicyErrors) => { return true; }; // Allow SSL
+                                           System.Net.Security.SslPolicyErrors sslPolicyErrors) => { return true; };
 
-                System.Net.ServicePointManager.DefaultConnectionLimit = 200; // set maximum concurrent connections 
+                // set maximum concurrent connections 
+                System.Net.ServicePointManager.DefaultConnectionLimit = 200; 
 
 
                 // Determine the absolute path of the server instance
@@ -170,6 +172,7 @@ namespace Oxide
                 RegisterFunction("cs.getelementtype", "lua_GetElementType");
                 RegisterFunction("cs.newtimer", "lua_NewTimer");
                 RegisterFunction("cs.sendwebrequest", "lua_SendWebRequest");
+                RegisterFunction("cs.postwebrequest", "lua_PostWebRequest");
                 RegisterFunction("cs.throwexception", "lua_ThrowException");
                 RegisterFunction("cs.gettimestamp", "lua_GetTimestamp");
                 RegisterFunction("cs.loadstring", "lua_LoadString");
@@ -669,6 +672,30 @@ namespace Oxide
                 return false;
             }
             AsyncWebRequest req = new AsyncWebRequest(url);
+            webrequests.Add(req);
+            req.OnResponse += (r) =>
+            {
+                try
+                {
+                    func.Call(r.ResponseCode, r.Response);
+                }
+                catch (Exception ex)
+                {
+                    //Debug.LogError(string.Format("Error in webrequest callback: {0}", ex));
+                    Logger.Error(string.Format("Error in webrequest callback ({0})", currentplugin), ex);
+                }
+            };
+            return true;
+        }
+
+
+        private bool lua_PostWebRequest(string url, string postdata, LuaFunction func)
+        {
+            if (webrequests.Count > 3)
+            {
+                return false;
+            }
+            AsyncWebRequest req = new AsyncWebRequest(url, postdata);
             webrequests.Add(req);
             req.OnResponse += (r) =>
             {
