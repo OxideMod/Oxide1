@@ -3,7 +3,7 @@ using System.Net;
 using System.IO;
 using System.Text;
 using System.Threading;
-using UnityEngine;
+
 
 namespace Oxide
 {
@@ -38,7 +38,7 @@ namespace Oxide
         {
             this.url = url;
             this.postdata = PostData;
-            Logger.Message("AsyncWebRequest: " + PostData);
+           
             thread = new Thread(PostWorker);
             thread.Start();
 
@@ -53,7 +53,7 @@ namespace Oxide
                 request.Credentials = CredentialCache.DefaultCredentials;
                 request.Method = "POST";
 
-                Logger.Message("POST: " + postdata);
+                
 
                 byte[] bytePostData = Encoding.UTF8.GetBytes(postdata);
 
