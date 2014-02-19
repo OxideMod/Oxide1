@@ -74,6 +74,15 @@ namespace Oxide
         {
             try
             {
+
+                System.Net.ServicePointManager.Expect100Continue = false;
+
+                System.Net.ServicePointManager.ServerCertificateValidationCallback = (object sender, System.Security.Cryptography.X509Certificates.X509Certificate certificate, System.Security.Cryptography.X509Certificates.X509Chain chain,
+                                           System.Net.Security.SslPolicyErrors sslPolicyErrors) => { return true; }; // Allow SSL
+
+                System.Net.ServicePointManager.DefaultConnectionLimit = 200; // set maximum concurrent connections 
+
+
                 // Determine the absolute path of the server instance
                 serverpath = Path.GetDirectoryName(Path.GetFullPath(Application.dataPath));
                 string[] cmdline = Environment.GetCommandLineArgs();
