@@ -66,7 +66,7 @@ namespace Oxide
             catch (Exception ex)
             {
                 Response = ex.ToString();
-                ResponseCode = -1
+                ResponseCode = -1;
                 Logger.Error(ex.ToString());
             }
             Complete = true;
