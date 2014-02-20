@@ -55,7 +55,6 @@ namespace Oxide
                 rdr.Close();
                 strm.Close();
                 response.Close();
-                Complete = true;
                 //Main.Log("Web request complete.");
             }
             catch (WebException webex)
@@ -63,12 +62,14 @@ namespace Oxide
                 var response = webex.Response as HttpWebResponse;
                 Response = webex.Message;
                 ResponseCode = (int)response.StatusCode;
-                Complete = true;
             }
             catch (Exception ex)
             {
+                Response = ex.ToString();
+                ResponseCode = -1
                 Logger.Error(ex.ToString());
             }
+            Complete = true;
         }
 
         /// <summary>
