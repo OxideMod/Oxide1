@@ -205,23 +205,7 @@ namespace Oxide
                 string[] files = Directory.GetFiles(GetPath("plugins"), "*.lua");
                 foreach (string file in files)
                 {
-                    string pluginname = Path.GetFileNameWithoutExtension(file);
-                    LuaTable plugininstance = createplugin.Call()[0] as LuaTable;
-                    lua["PLUGIN"] = plugininstance;
-                    plugininstance["Filename"] = file;
-                    plugininstance["Name"] = pluginname;
-                    try
-                    {
-                        currentplugin = pluginname;
-                        string code = File.ReadAllText(GetPath(file));
-                        lua.LoadString(code, file).Call();
-                        plugins.Add(pluginname, plugininstance);
-                        lua["PLUGIN"] = null;
-                    }
-                    catch (NLua.Exceptions.LuaScriptException luaex)
-                    {
-                        Logger.Error(string.Format("Failed to load plugin '{0}'!", file), luaex);
-                    }
+                    LoadPlugin(file);
                 }
 
                 // Check plugin dependencies
@@ -712,33 +696,69 @@ namespace Oxide
 
         #endregion
 
-        private void ReloadPlugin(string name)
+        private bool LoadPlugin(string file)
         {
-            LuaTable plugin;
-            if (!plugins.TryGetValue(name, out plugin)) return;
-            CallSpecificPlugin(name, "Unload", null);
-            plugins.Remove(name);
-            string filename = (string)plugin["Filename"];
+            string pluginname = Path.GetFileNameWithoutExtension(file);
+
+            Logger.Message(string.Format("Loading plugin {0}", pluginname));
+
             LuaTable plugininstance = createplugin.Call()[0] as LuaTable;
             lua["PLUGIN"] = plugininstance;
-            plugininstance["Filename"] = filename;
-            plugininstance["Name"] = name;
+            plugininstance["Filename"] = file;
+            plugininstance["Name"] = pluginname;
             try
             {
-                currentplugin = name;
-                string code = File.ReadAllText(GetPath(filename));
-                lua.LoadString(code, filename).Call();
-                plugins.Add(name, plugininstance);
+                currentplugin = pluginname;
+                string code = File.ReadAllText(GetPath(file));
+                lua.LoadString(code, file).Call();
+                plugins.Add(pluginname, plugininstance);
                 lua["PLUGIN"] = null;
+                return true;
             }
             catch (NLua.Exceptions.LuaScriptException luaex)
             {
-                //LogError(string.Format("Failed to reload plugin '{0}'! ({1})", name, luaex.Message));
-                //LogError(luaex.StackTrace);
-                Logger.Error(string.Format("Failed to reload plugin '{0}'!", name), luaex);
+                Logger.Error(string.Format("Failed to load plugin '{0}'!", file), luaex);
+                return false;
             }
-            CallSpecificPlugin(name, "Init", null);
-            CallSpecificPlugin(name, "PostInit", null);
+        }
+
+        private void ReloadPlugin(string name)
+        {
+            LuaTable plugin = null;
+            
+            Logger.Message(string.Format("Reloading Plugin: {0}", name));
+
+            if (!plugins.TryGetValue(name, out plugin))
+            {
+                Logger.Error(string.Format("Could not find Plugin: {0}", name));
+                return;
+            }
+
+            CallSpecificPlugin(name, "Unload", null);
+            string filename = (string)plugin["Filename"];
+            plugins[name] = null;
+            plugins.Remove(name);
+
+            bool ret = LoadPlugin(filename);
+
+            if (ret)
+            {
+                Logger.Message(string.Format("Reloaded plugin: {0}", name));
+
+                // call all start up functions in the order they would be called if the server just started.
+                CallSpecificPlugin(name, "OnServerInitialized", null);
+                CallSpecificPlugin(name, "OnDatablocksLoaded", null);
+                CallSpecificPlugin(name, "Init", null);
+                CallSpecificPlugin(name, "PostInit", null);
+                CallSpecificPlugin(name, "ServerStart", null);
+            }
+            else
+            {
+                Logger.Error(string.Format("Failed to reload plugin: {0}", name));
+                return;
+            }
+
+           
         }
 
         private static MethodBase LuaCallFunction;
@@ -826,8 +846,14 @@ namespace Oxide
         {
 
             string callerplugin = currentplugin;
-            LuaTable plugin;
-            if (!plugins.TryGetValue(pluginname, out plugin)) return null;
+            LuaTable plugin = null;
+
+            if (!plugins.TryGetValue(pluginname, out plugin))
+            {
+                Logger.Error(string.Format("Could not find Plugin: {0}", pluginname));
+                return null;
+            }
+
             LuaFunction func = plugin[name] as LuaFunction;
             if (func != null)
             {
@@ -848,9 +874,11 @@ namespace Oxide
                 }
                 else
                     argsarr = Array(1);
-                LuaCallFunctionArgs2[0] = plugin;
-                LuaCallFunctionArgs2[1] = argsarr;
-                LuaCallFunctionArgs2[2] = null;
+
+                argsarr[0] = plugin;
+                LuaCallFunctionArgs[0] = func;
+                LuaCallFunctionArgs[1] = argsarr;
+                LuaCallFunctionArgs[2] = null;
 
                 currentplugin = pluginname;
                 try
