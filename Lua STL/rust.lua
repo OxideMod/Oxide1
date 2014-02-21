@@ -72,7 +72,7 @@ function rust.CommunityIDToSteamID( id )
 	if (not validate.Args( "rust.CommunityIDToSteamID", RustCommunityIDToSteamID, id )) then return end
 	-- STEAM_X:Y:Z
 	-- W = Z*2 + Y
-	return "STEAM_0:" .. (id % 2) .. ":" .. math.floor( id / 2 )
+	return "STEAM_0:" .. (id % 1) .. ":" .. math.floor( id / 2 )
 end
 local RustRunServerCommand = { "string" }
 function rust.RunServerCommand( cmd )

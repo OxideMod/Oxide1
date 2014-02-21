@@ -20,17 +20,20 @@ end
 function BASE:AddChatCommand( cmd, callback )
 	self.ChatCommands[ cmd ] = callback
 end
-function BASE:OnRunCommand( arg )
+function BASE:OnRunCommand( arg, wantreply )
 	local cmd = arg.Class .. "." .. arg.Function
 	if (self.Commands[ cmd ]) then
 		local data = self.Commands[ cmd ]
-		local b, res = pcall( data.Callback, self, arg )
+		local b, res = pcall( data.Callback, self, arg, wantreply )
 		if (not b) then
-			arg:ReplyWith( "Lua error handling command: " .. tostring( res ) )
+			if (wantreply) then arg:ReplyWith( "Lua error handling command: " .. tostring( res ) ) end
 			error( "Lua error handling console command '" .. cmd .. "'!" )
 			util.ReportError( res )
 		else
-			if (res ~= nil) then return res end
+			if (res ~= nil) then
+				--print( "returning " .. tostring(res) )
+				return res
+			end
 		end
 	end
 end

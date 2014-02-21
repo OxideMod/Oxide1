@@ -52,6 +52,8 @@
     </Compile>
     <Compile Include="Main.cs" />
     <Compile Include="OxideComponent.cs" />
+    <Compile Include="Plugin.cs" />
+    <Compile Include="PluginManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ServerInitHook.cs" />
     <Compile Include="Timer.cs" />

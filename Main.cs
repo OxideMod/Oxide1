@@ -27,9 +27,12 @@ namespace Oxide
         }
         public static object Call(string name, object[] args)
         {
-
-            return singleton.CallPlugin(name, args);
+            return singleton.PluginManager.Call(name, args);
         }
+
+        #endregion
+
+        #region Utility
 
         private static object[][] arraypool = new object[16][];
         public static object[] Array(int size)
@@ -37,10 +40,6 @@ namespace Oxide
             if (arraypool[size] == null) arraypool[size] = new object[size];
             return arraypool[size];
         }
-
-        #endregion
-
-        #region Utility
 
         private static string serverpath;
 
@@ -55,10 +54,6 @@ namespace Oxide
         #endregion
 
         private Lua lua;
-        private Dictionary<string, LuaTable> plugins;
-
-        private LuaFunction callunpacked;
-        private LuaFunction createplugin;
 
         private Dictionary<string, Datafile> datafiles;
 
@@ -68,186 +63,162 @@ namespace Oxide
         private HashSet<Timer> timers;
         private HashSet<AsyncWebRequest> webrequests;
 
-        private string currentplugin;
+        private PluginManager pluginmanager;
+        public PluginManager PluginManager { get { return pluginmanager; } }
 
         private Main()
         {
             try
             {
-
-                System.Net.ServicePointManager.Expect100Continue = false;
-
-                System.Net.ServicePointManager.ServerCertificateValidationCallback = (object sender, System.Security.Cryptography.X509Certificates.X509Certificate certificate, System.Security.Cryptography.X509Certificates.X509Chain chain,
-                                           System.Net.Security.SslPolicyErrors sslPolicyErrors) => { return true; }; // Allow SSL
-
-                System.Net.ServicePointManager.DefaultConnectionLimit = 200; // set maximum concurrent connections 
-
-
-                // Determine the absolute path of the server instance
-                serverpath = Path.GetDirectoryName(Path.GetFullPath(Application.dataPath));
-                string[] cmdline = Environment.GetCommandLineArgs();
-                for (int i = 0; i < cmdline.Length - 1; i++)
-                {
-                    string arg = cmdline[i].ToLower();
-                    if (arg == "-serverinstancedir" || arg == "-oxidedir")
-                    {
-                        try
-                        {
-                            serverpath = Path.GetFullPath(cmdline[++i]);
-                        }
-                        catch (Exception ex)
-                        {
-                            Logger.Error("Failed to read server instance directory from command line!", ex);
-                        }
-                    }
-                }
-
-                // Ensure directories exist
-                if (!Directory.Exists(serverpath)) Directory.CreateDirectory(serverpath);
-                if (!Directory.Exists(GetPath("plugins"))) Directory.CreateDirectory(GetPath("plugins"));
-                if (!Directory.Exists(GetPath("data"))) Directory.CreateDirectory(GetPath("data"));
-                if (!Directory.Exists(GetPath("logs"))) Directory.CreateDirectory(GetPath("logs"));
-                Logger.Message(string.Format("Loading at {0}...", serverpath));
-
-                // Initialise the Unity component
-                oxideobject = new GameObject("Oxide");
-                oxidecomponent = oxideobject.AddComponent<OxideComponent>();
-                oxidecomponent.Oxide = this;
-
-                // Hook things that we can't hook using the IL injector
-                var serverinit = UnityEngine.Object.FindObjectOfType(Type.GetType("ServerInit, Assembly-CSharp")) as MonoBehaviour;
-                serverinit.gameObject.AddComponent<ServerInitHook>();
-
-                // Initialise needed maps and collections
-                datafiles = new Dictionary<string, Datafile>();
-                plugins = new Dictionary<string, LuaTable>();
-                timers = new HashSet<Timer>();
-                webrequests = new HashSet<AsyncWebRequest>();
-
-                // Initialise the lua state
-                lua = new Lua();
-                lua["os"] = null;
-                lua["io"] = null;
-                lua["require"] = null;
-                lua["dofile"] = null;
-                lua["package"] = null;
-                lua["luanet"] = null;
-                lua["load"] = null;
-
-                // Register functions
-                lua.NewTable("cs");
-                RegisterFunction("cs.print", "lua_Print");
-                RegisterFunction("cs.error", "lua_Error");
-                RegisterFunction("cs.callplugins", "lua_CallPlugins");
-                RegisterFunction("cs.findplugin", "lua_FindPlugin");
-                RegisterFunction("cs.requeststatic", "lua_RequestStatic");
-                RegisterFunction("cs.registerstaticmethod", "lua_RegisterStaticMethod");
-                RegisterFunction("cs.requeststaticproperty", "lua_RequestStaticProperty");
-                RegisterFunction("cs.requestproperty", "lua_RequestProperty");
-                RegisterFunction("cs.requeststaticfield", "lua_RequestStaticField");
-                RegisterFunction("cs.requestfield", "lua_RequestField");
-                RegisterFunction("cs.requestenum", "lua_RequestEnum");
-                RegisterFunction("cs.readproperty", "lua_ReadProperty");
-                RegisterFunction("cs.readfield", "lua_ReadField");
-                RegisterFunction("cs.castreadproperty", "lua_CastReadProperty");
-                RegisterFunction("cs.castreadfield", "lua_CastReadField");
-                RegisterFunction("cs.readulongpropertyasuint", "lua_ReadULongPropertyAsUInt");
-                RegisterFunction("cs.readulongpropertyasstring", "lua_ReadULongPropertyAsString");
-                RegisterFunction("cs.readulongfieldasuint", "lua_ReadULongFieldAsUInt");
-                RegisterFunction("cs.readulongfieldasstring", "lua_ReadULongFieldAsString");
-                RegisterFunction("cs.readpropertyandsetonarray", "lua_ReadPropertyAndSetOnArray");
-                RegisterFunction("cs.readfieldandsetonarray", "lua_ReadFieldAndSetOnArray");
-                RegisterFunction("cs.reloadplugin", "lua_ReloadPlugin");
-                RegisterFunction("cs.getdatafile", "lua_GetDatafile");
-                RegisterFunction("cs.dump", "lua_Dump");
-                RegisterFunction("cs.createarrayfromtable", "lua_CreateArrayFromTable");
-                RegisterFunction("cs.createtablefromarray", "lua_CreateTableFromArray");
-                RegisterFunction("cs.gettype", "lua_GetType");
-                RegisterFunction("cs.makegenerictype", "lua_MakeGenericType");
-                RegisterFunction("cs.new", "lua_New");
-                RegisterFunction("cs.newarray", "lua_NewArray");
-                RegisterFunction("cs.convertandsetonarray", "lua_ConvertAndSetOnArray");
-                RegisterFunction("cs.getelementtype", "lua_GetElementType");
-                RegisterFunction("cs.newtimer", "lua_NewTimer");
-                RegisterFunction("cs.sendwebrequest", "lua_SendWebRequest");
-                RegisterFunction("cs.postwebrequest", "lua_PostWebRequest");
-                RegisterFunction("cs.throwexception", "lua_ThrowException");
-                RegisterFunction("cs.gettimestamp", "lua_GetTimestamp");
-                RegisterFunction("cs.loadstring", "lua_LoadString");
-                RegisterFunction("cs.createperfcounter", "lua_CreatePerfCounter");
-
-                // Register constants
-                lua.NewTable("bf");
-                lua["bf.public_instance"] = BindingFlags.Public | BindingFlags.Instance;
-                lua["bf.private_instance"] = BindingFlags.NonPublic | BindingFlags.Instance;
-                lua["bf.public_static"] = BindingFlags.Public | BindingFlags.Static;
-                lua["bf.private_static"] = BindingFlags.NonPublic | BindingFlags.Static;
-
-                // Load the standard library
-                Logger.Message("Loading standard library...");
-                lua.LoadString(LuaOxideSTL.csfunc, "csfunc.stl").Call();
-                lua.LoadString(LuaOxideSTL.json, "json.stl").Call();
-                lua.LoadString(LuaOxideSTL.util, "util.stl").Call();
-                lua.LoadString(LuaOxideSTL.type, "type.stl").Call();
-                lua.LoadString(LuaOxideSTL.baseplugin, "baseplugin.stl").Call();
-                lua.LoadString(LuaOxideSTL.rust, "rust.stl").Call();
-                lua.LoadString(LuaOxideSTL.config, "config.stl").Call();
-                lua.LoadString(LuaOxideSTL.plugins, "plugins.stl").Call();
-                lua.LoadString(LuaOxideSTL.timer, "timer.stl").Call();
-                lua.LoadString(LuaOxideSTL.webrequest, "webrequest.stl").Call();
-                lua.LoadString(LuaOxideSTL.validate, "validate.stl").Call();
-
-                // Read back required functions
-                callunpacked = lua["callunpacked"] as LuaFunction;
-                createplugin = lua["createplugin"] as LuaFunction;
-
-                // Load all plugins
-                Logger.Message("Loading plugins...");
-                string[] files = Directory.GetFiles(GetPath("plugins"), "*.lua");
-                foreach (string file in files)
-                {
-                    LoadPlugin(file);
-                }
-
-                // Check plugin dependencies
-                HashSet<string> toremove = new HashSet<string>();
-                int numits = 0;
-                while (numits == 0 || toremove.Count > 0)
-                {
-                    toremove.Clear();
-                    foreach (var pair in plugins)
-                    {
-                        LuaTable dependencies = pair.Value["Depends"] as LuaTable;
-                        if (dependencies != null)
-                        {
-                            foreach (var key in dependencies.Keys)
-                            {
-                                object value = dependencies[key];
-                                if (value is string)
-                                {
-                                    if (!plugins.ContainsKey((string)value) || toremove.Contains((string)value))
-                                    {
-                                        Logger.Error(string.Format("The plugin '{0}' depends on missing or unloaded plugin '{1}' and won't be loaded!", pair.Key, value));
-                                        toremove.Add(pair.Key);
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    foreach (string name in toremove)
-                        plugins.Remove(name);
-                    numits++;
-                }
-
-                // Call Init and PostInit on all plugins
-                CallPlugin("Init", null);
-                CallPlugin("PostInit", null);
+                // Load us
+                Load();
             }
             catch (Exception ex)
             {
                 Logger.Error(string.Format("Error loading oxide!"), ex);
             }
+        }
+
+        /// <summary>
+        /// Loads Oxide
+        /// </summary>
+        private void Load()
+        {
+            // Initialise SSL
+            System.Net.ServicePointManager.Expect100Continue = false;
+            System.Net.ServicePointManager.ServerCertificateValidationCallback = (object sender, System.Security.Cryptography.X509Certificates.X509Certificate certificate, System.Security.Cryptography.X509Certificates.X509Chain chain,
+                                       System.Net.Security.SslPolicyErrors sslPolicyErrors) => { return true; };
+            System.Net.ServicePointManager.DefaultConnectionLimit = 200;
+
+            // Determine the absolute path of the server instance
+            serverpath = Path.GetDirectoryName(Path.GetFullPath(Application.dataPath));
+            string[] cmdline = Environment.GetCommandLineArgs();
+            for (int i = 0; i < cmdline.Length - 1; i++)
+            {
+                string arg = cmdline[i].ToLower();
+                if (arg == "-serverinstancedir" || arg == "-oxidedir")
+                {
+                    try
+                    {
+                        serverpath = Path.GetFullPath(cmdline[++i]);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error("Failed to read server instance directory from command line!", ex);
+                    }
+                }
+            }
+
+            // Ensure directories exist
+            if (!Directory.Exists(serverpath)) Directory.CreateDirectory(serverpath);
+            if (!Directory.Exists(GetPath("plugins"))) Directory.CreateDirectory(GetPath("plugins"));
+            if (!Directory.Exists(GetPath("data"))) Directory.CreateDirectory(GetPath("data"));
+            if (!Directory.Exists(GetPath("logs"))) Directory.CreateDirectory(GetPath("logs"));
+            Logger.Message(string.Format("Loading at {0}...", serverpath));
+
+            // Initialise the Unity component
+            oxideobject = new GameObject("Oxide");
+            oxidecomponent = oxideobject.AddComponent<OxideComponent>();
+            oxidecomponent.Oxide = this;
+
+            // Hook things that we can't hook using the IL injector
+            var serverinit = UnityEngine.Object.FindObjectOfType(Type.GetType("ServerInit, Assembly-CSharp")) as MonoBehaviour;
+            serverinit.gameObject.AddComponent<ServerInitHook>();
+
+            // Initialise needed maps and collections
+            datafiles = new Dictionary<string, Datafile>();
+            timers = new HashSet<Timer>();
+            webrequests = new HashSet<AsyncWebRequest>();
+
+            // Initialise the lua state
+            lua = new Lua();
+            lua["os"] = null;
+            lua["io"] = null;
+            lua["require"] = null;
+            lua["dofile"] = null;
+            lua["package"] = null;
+            lua["luanet"] = null;
+            lua["load"] = null;
+
+            // Register functions
+            lua.NewTable("cs");
+            RegisterFunction("cs.print", "lua_Print");
+            RegisterFunction("cs.error", "lua_Error");
+            RegisterFunction("cs.callplugins", "lua_CallPlugins");
+            RegisterFunction("cs.findplugin", "lua_FindPlugin");
+            RegisterFunction("cs.requeststatic", "lua_RequestStatic");
+            RegisterFunction("cs.registerstaticmethod", "lua_RegisterStaticMethod");
+            RegisterFunction("cs.requeststaticproperty", "lua_RequestStaticProperty");
+            RegisterFunction("cs.requestproperty", "lua_RequestProperty");
+            RegisterFunction("cs.requeststaticfield", "lua_RequestStaticField");
+            RegisterFunction("cs.requestfield", "lua_RequestField");
+            RegisterFunction("cs.requestenum", "lua_RequestEnum");
+            RegisterFunction("cs.readproperty", "lua_ReadProperty");
+            RegisterFunction("cs.readfield", "lua_ReadField");
+            RegisterFunction("cs.castreadproperty", "lua_CastReadProperty");
+            RegisterFunction("cs.castreadfield", "lua_CastReadField");
+            RegisterFunction("cs.readulongpropertyasuint", "lua_ReadULongPropertyAsUInt");
+            RegisterFunction("cs.readulongpropertyasstring", "lua_ReadULongPropertyAsString");
+            RegisterFunction("cs.readulongfieldasuint", "lua_ReadULongFieldAsUInt");
+            RegisterFunction("cs.readulongfieldasstring", "lua_ReadULongFieldAsString");
+            RegisterFunction("cs.readpropertyandsetonarray", "lua_ReadPropertyAndSetOnArray");
+            RegisterFunction("cs.readfieldandsetonarray", "lua_ReadFieldAndSetOnArray");
+            RegisterFunction("cs.reloadplugin", "lua_ReloadPlugin");
+            RegisterFunction("cs.getdatafile", "lua_GetDatafile");
+            RegisterFunction("cs.dump", "lua_Dump");
+            RegisterFunction("cs.createarrayfromtable", "lua_CreateArrayFromTable");
+            RegisterFunction("cs.createtablefromarray", "lua_CreateTableFromArray");
+            RegisterFunction("cs.gettype", "lua_GetType");
+            RegisterFunction("cs.makegenerictype", "lua_MakeGenericType");
+            RegisterFunction("cs.new", "lua_New");
+            RegisterFunction("cs.newarray", "lua_NewArray");
+            RegisterFunction("cs.convertandsetonarray", "lua_ConvertAndSetOnArray");
+            RegisterFunction("cs.getelementtype", "lua_GetElementType");
+            RegisterFunction("cs.newtimer", "lua_NewTimer");
+            RegisterFunction("cs.sendwebrequest", "lua_SendWebRequest");
+            RegisterFunction("cs.postwebrequest", "lua_PostWebRequest");
+            RegisterFunction("cs.throwexception", "lua_ThrowException");
+            RegisterFunction("cs.gettimestamp", "lua_GetTimestamp");
+            RegisterFunction("cs.loadstring", "lua_LoadString");
+            RegisterFunction("cs.createperfcounter", "lua_CreatePerfCounter");
+
+            // Register constants
+            lua.NewTable("bf");
+            lua["bf.public_instance"] = BindingFlags.Public | BindingFlags.Instance;
+            lua["bf.private_instance"] = BindingFlags.NonPublic | BindingFlags.Instance;
+            lua["bf.public_static"] = BindingFlags.Public | BindingFlags.Static;
+            lua["bf.private_static"] = BindingFlags.NonPublic | BindingFlags.Static;
+
+            // Load the standard library
+            Logger.Message("Loading standard library...");
+            lua.LoadString(LuaOxideSTL.csfunc, "csfunc.stl").Call();
+            lua.LoadString(LuaOxideSTL.json, "json.stl").Call();
+            lua.LoadString(LuaOxideSTL.util, "util.stl").Call();
+            lua.LoadString(LuaOxideSTL.type, "type.stl").Call();
+            lua.LoadString(LuaOxideSTL.baseplugin, "baseplugin.stl").Call();
+            lua.LoadString(LuaOxideSTL.rust, "rust.stl").Call();
+            lua.LoadString(LuaOxideSTL.config, "config.stl").Call();
+            lua.LoadString(LuaOxideSTL.plugins, "plugins.stl").Call();
+            lua.LoadString(LuaOxideSTL.timer, "timer.stl").Call();
+            lua.LoadString(LuaOxideSTL.webrequest, "webrequest.stl").Call();
+            lua.LoadString(LuaOxideSTL.validate, "validate.stl").Call();
+
+            // Initialise the plugin manager
+            pluginmanager = new PluginManager();
+
+            // Iterate all physical plugins
+            Logger.Message("Loading plugins...");
+            string[] files = Directory.GetFiles(GetPath("plugins"), "*.lua");
+            foreach (string file in files)
+            {
+                // Load and register the plugin
+                Plugin p = new Plugin(lua);
+                if (p.Load(file)) pluginmanager.AddPlugin(p);
+            }
+
+            // Call Init and PostInit on all plugins
+            pluginmanager.Call("Init", null);
+            pluginmanager.Call("PostInit", null);
         }
 
         /// <summary>
@@ -267,6 +238,11 @@ namespace Oxide
             }
         }
 
+        /// <summary>
+        /// Registers a .net function inside of Lua
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="name"></param>
         private void RegisterFunction(string path, string name)
         {
             var method = GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic);
@@ -282,7 +258,7 @@ namespace Oxide
         }
         private void lua_Error(string message)
         {
-            Logger.Error(string.Format("{0}: {1}", currentplugin, message));
+            Logger.Error(string.Format("{0}: {1}", Plugin.CurrentPlugin, message));
         }
 
         private object lua_CallPlugins(string methodname, LuaTable args, int argn)
@@ -290,13 +266,16 @@ namespace Oxide
             object[] arr = Array(argn);
             for (int i = 0; i < argn; i++)
                 arr[i] = args[i + 1];
-            return CallPlugin(methodname, arr);
+            return pluginmanager.Call(methodname, arr);
         }
         private LuaTable lua_FindPlugin(string name)
         {
-            LuaTable result;
+            /*LuaTable result;
             if (!plugins.TryGetValue(name, out result)) result = null;
-            return result;
+            return result;*/
+            Plugin p = pluginmanager[name];
+            if (p == null) return null;
+            return p.Table;
         }
 
         private int lua_RequestStatic(string path, Type typ, string methodname)
@@ -468,9 +447,30 @@ namespace Oxide
             return value.ToString();
         }
 
-        private void lua_ReloadPlugin(string name)
+        private bool lua_ReloadPlugin(string name)
         {
-            ReloadPlugin(name);
+            Plugin oldplugin = pluginmanager[name];
+            if (oldplugin == null) return false;
+            oldplugin.Call("Unload", null);
+            pluginmanager.RemovePlugin(oldplugin);
+            Plugin p = new Plugin(lua);
+            if (!p.Load(oldplugin.Filename)) return false;
+            pluginmanager.AddPlugin(p);
+            p.Call("Init", null);
+            p.Call("PostInit", null);
+            p.Call("ServerStart", null);
+            p.Call("OnDatablocksLoaded", null);
+            p.Call("OnServerInitialized", null);
+            return true;
+        }
+        private bool lua_LoadPlugin(string name)
+        {
+            Plugin oldplugin = pluginmanager[name];
+            if (oldplugin != null) return false;
+            Plugin p = new Plugin(lua);
+            if (!p.Load(oldplugin.Filename)) return false;
+            pluginmanager.AddPlugin(p);
+            return true;
         }
 
         private Datafile lua_GetDatafile(string name)
@@ -629,6 +629,7 @@ namespace Oxide
 
         private Timer lua_NewTimer(float delay, int numiterations, LuaFunction func)
         {
+            Plugin callerplugin = Plugin.CurrentPlugin;
             Action callback = new Action(() =>
             {
                 try
@@ -638,7 +639,7 @@ namespace Oxide
                 catch (Exception ex)
                 {
                     //Logger.Error(string.Format("Error in timer ({1}): {0}", ex));
-                    Logger.Error(string.Format("Error in timer ({0})", currentplugin), ex);
+                    Logger.Error(string.Format("Error in timer ({0})", callerplugin), ex);
                 }
             });
             Timer tmr = Timer.Create(delay, numiterations, callback);
@@ -655,6 +656,7 @@ namespace Oxide
             }
             AsyncWebRequest req = new AsyncWebRequest(url);
             webrequests.Add(req);
+            Plugin callerplugin = Plugin.CurrentPlugin;
             req.OnResponse += (r) =>
             {
                 try
@@ -664,7 +666,7 @@ namespace Oxide
                 catch (Exception ex)
                 {
                     //Debug.LogError(string.Format("Error in webrequest callback: {0}", ex));
-                    Logger.Error(string.Format("Error in webrequest callback ({0})", currentplugin), ex);
+                    Logger.Error(string.Format("Error in webrequest callback ({0})", callerplugin), ex);
                 }
             };
             return true;
@@ -678,6 +680,7 @@ namespace Oxide
             }
             AsyncWebRequest req = new AsyncWebRequest(url, postdata);
             webrequests.Add(req);
+            Plugin callerplugin = Plugin.CurrentPlugin;
             req.OnResponse += (r) =>
             {
                 try
@@ -687,7 +690,7 @@ namespace Oxide
                 catch (Exception ex)
                 {
                     //Debug.LogError(string.Format("Error in webrequest callback: {0}", ex));
-                    Logger.Error(string.Format("Error in webrequest callback ({0})", currentplugin), ex);
+                    Logger.Error(string.Format("Error in webrequest callback ({0})", callerplugin), ex);
                 }
             };
             return true;
@@ -719,207 +722,6 @@ namespace Oxide
         }
 
         #endregion
-
-        private bool LoadPlugin(string file)
-        {
-            string pluginname = Path.GetFileNameWithoutExtension(file);
-
-            Logger.Message(string.Format("Loading plugin {0}", pluginname));
-
-            LuaTable plugininstance = createplugin.Call()[0] as LuaTable;
-            lua["PLUGIN"] = plugininstance;
-            plugininstance["Filename"] = file;
-            plugininstance["Name"] = pluginname;
-            try
-            {
-                currentplugin = pluginname;
-                string code = File.ReadAllText(GetPath(file));
-                lua.LoadString(code, file).Call();
-                plugins.Add(pluginname, plugininstance);
-                lua["PLUGIN"] = null;
-                return true;
-            }
-            catch (NLua.Exceptions.LuaScriptException luaex)
-            {
-                Logger.Error(string.Format("Failed to load plugin '{0}'!", file), luaex);
-                return false;
-            }
-        }
-
-        private void ReloadPlugin(string name)
-        {
-            LuaTable plugin = null;
-            
-            Logger.Message(string.Format("Reloading Plugin: {0}", name));
-
-            if (!plugins.TryGetValue(name, out plugin))
-            {
-                Logger.Error(string.Format("Could not find Plugin: {0}", name));
-                return;
-            }
-
-            CallSpecificPlugin(name, "Unload", null);
-            string filename = (string)plugin["Filename"];
-            plugins[name] = null;
-            plugins.Remove(name);
-
-            bool ret = LoadPlugin(filename);
-
-            if (ret)
-            {
-                Logger.Message(string.Format("Reloaded plugin: {0}", name));
-
-                // call all start up functions in the order they would be called if the server just started.
-                CallSpecificPlugin(name, "OnServerInitialized", null);
-                CallSpecificPlugin(name, "OnDatablocksLoaded", null);
-                CallSpecificPlugin(name, "Init", null);
-                CallSpecificPlugin(name, "PostInit", null);
-                CallSpecificPlugin(name, "ServerStart", null);
-            }
-            else
-            {
-                Logger.Error(string.Format("Failed to reload plugin: {0}", name));
-                return;
-            }
-
-           
-        }
-
-        private static MethodBase LuaCallFunction;
-        private static readonly Type[] LuaCallFunctionSig = new Type[] { typeof(object), typeof(object[]), typeof(Type[]) };
-        private static readonly object[] LuaCallFunctionArgs = new object[3];
-        private object CallPlugin(string name, object[] args)
-        {
-            if (LuaCallFunction == null)
-            {
-                LuaCallFunction = typeof(Lua).GetMethod("CallFunction", BindingFlags.NonPublic | BindingFlags.Instance, null, LuaCallFunctionSig, null);
-            }
-            /*if (args == null)
-                Log(string.Format("Call to plugin method '{0}' with no args", name));
-            else
-                Log(string.Format("Call to plugin method '{0}' with {1} args", name, args.Length));*/
-            /*if (args != null)
-            {
-                string[] tmp = new string[args.Length];
-                for (int i = 0; i < args.Length; i++)
-                {
-                    if (args[i] == null)
-                        tmp[i] = "null";
-                    else
-                        tmp[i] = args[i].ToString();
-                }
-                Log(string.Format("Call to plugin method '{0}' ({1})", name, string.Concat(tmp)));
-            }*/
-
-            /*lua.NewTable("_args");
-            LuaTable argstable = lua["_args"] as LuaTable;
-            if (args != null)
-                for (int i = 0; i < args.Length; i++)
-                    argstable[i + 2] = args[i];*/
-            object[] argsarr;
-            if (args != null)
-            {
-                argsarr = Array(1 + args.Length);
-                for (int i = 0; i < args.Length; i++)
-                    argsarr[i + 1] = args[i];
-            }
-            else
-                argsarr = Array(1);
-            LuaCallFunctionArgs[1] = argsarr;
-            LuaCallFunctionArgs[2] = null;
-            foreach (var pair in plugins)
-            {
-                LuaFunction func = pair.Value[name] as LuaFunction;
-                if (func != null)
-                {
-                    LuaCallFunctionArgs[0] = func;
-                    //argstable[1] = pair.Value;
-                    currentplugin = pair.Key;
-                    argsarr[0] = pair.Value;
-                    try
-                    {
-                        object[] result = LuaCallFunction.Invoke(lua, LuaCallFunctionArgs) as object[];
-                        if (result != null && result.Length > 0)
-                        {
-                            //Log(string.Format("Returning result {0} from plugin call", result[0]));
-                            return result[0];
-                        }
-                    }
-                    catch (NLua.Exceptions.LuaScriptException luaex)
-                    {
-                        /*LogError(string.Format("Lua error ({0}:{2}): {1}", pair.Key, luaex.Message, luaex.Source));
-                        LogError(luaex.StackTrace);
-                        if (luaex.InnerException != null)
-                            LogError(luaex.InnerException.ToString());*/
-                        Logger.Error(string.Format("Lua error ({0}:{1})", pair.Key, luaex.Source), luaex);
-                    }
-                    catch (Exception ex)
-                    {
-                        /*LogError(string.Format("Lua error ({0}): {1}", pair.Key, ex));
-                        LogError(ex.StackTrace);
-                        if (ex.InnerException != null)
-                            LogError(ex.InnerException.ToString());*/
-                        Logger.Error(string.Format("Lua error ({0})", pair.Key), ex);
-                    }
-                }
-            }
-            return null;
-        }
-        private static readonly object[] LuaCallFunctionArgs2 = new object[3];
-        private object CallSpecificPlugin(string pluginname, string name, object[] args)
-        {
-
-            string callerplugin = currentplugin;
-            LuaTable plugin = null;
-
-            if (!plugins.TryGetValue(pluginname, out plugin))
-            {
-                Logger.Error(string.Format("Could not find Plugin: {0}", pluginname));
-                return null;
-            }
-
-            LuaFunction func = plugin[name] as LuaFunction;
-            if (func != null)
-            {
-
-                /*lua.NewTable("_args");
-                LuaTable argstable = lua["_args"] as LuaTable;
-                if (args != null)
-                    for (int i = 0; i < args.Length; i++)
-                        argstable[i + 2] = args[i];
-                argstable[1] = plugin;*/
-
-                object[] argsarr;
-                if (args != null)
-                {
-                    argsarr = Array(1 + args.Length);
-                    for (int i = 0; i < args.Length; i++)
-                        argsarr[i + 1] = args[i];
-                }
-                else
-                    argsarr = Array(1);
-
-                argsarr[0] = plugin;
-                LuaCallFunctionArgs[0] = func;
-                LuaCallFunctionArgs[1] = argsarr;
-                LuaCallFunctionArgs[2] = null;
-
-                currentplugin = pluginname;
-                try
-                {
-                    //object[] result = callunpacked.Call(func, argstable);
-                    object[] result = LuaCallFunction.Invoke(lua, LuaCallFunctionArgs) as object[];
-                    if (result != null && result.Length > 0) return result[0];
-                }
-                catch (Exception ex)
-                {
-                    //LogError(string.Format("Lua error ({0}): {1}", pluginname, ex.Message));
-                    Logger.Error(string.Format("Lua error ({0}) (call is coming from {1})", pluginname, callerplugin), ex);
-                }
-            }
-            currentplugin = callerplugin;
-            return null;
-        }
 
     }
 }

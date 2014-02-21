@@ -11,7 +11,7 @@ function plugins.Call( name, ... )
 	return cs.callplugins( name, args, #args )
 end
 function plugins.Reload( name )
-	cs.reloadplugin( name )
+	return cs.reloadplugin( name )
 end
 
 api = {}
