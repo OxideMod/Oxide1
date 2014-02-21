@@ -17,7 +17,7 @@ namespace Oxide
         public string Title { get; private set; }
         public string Description { get; private set; }
         public string Author { get; private set; }
-        public float Version { get; private set; }
+        public string Version { get; private set; }
         public string Filename { get; private set; }
         public string ShortFilename { get; private set; }
         public Lua LuaInstance { get; private set; }
@@ -140,7 +140,7 @@ namespace Oxide
                 Logger.Error(string.Format("Failed to load plugin {0} (invalid 'Description')", Name));
                 return false;
             }
-            if (!(table["Version"] is double))
+            if (!(table["Version"] is string))
             {
                 Logger.Error(string.Format("Failed to load plugin {0} (invalid 'Version')", Name));
                 return false;
@@ -154,7 +154,7 @@ namespace Oxide
             // Load plugin descriptors
             Title = (string)table["Title"];
             Description = (string)table["Description"];
-            Version = (float)(double)table["Version"];
+            Version = (string)table["Version"];
             Author = (string)table["Author"];
 
             // Success
