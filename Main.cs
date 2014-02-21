@@ -170,6 +170,7 @@ namespace Oxide
                 RegisterFunction("cs.getelementtype", "lua_GetElementType");
                 RegisterFunction("cs.newtimer", "lua_NewTimer");
                 RegisterFunction("cs.sendwebrequest", "lua_SendWebRequest");
+                RegisterFunction("cs.postwebrequest", "lua_PostWebRequest");
                 RegisterFunction("cs.throwexception", "lua_ThrowException");
                 RegisterFunction("cs.gettimestamp", "lua_GetTimestamp");
                 RegisterFunction("cs.loadstring", "lua_LoadString");
@@ -653,6 +654,29 @@ namespace Oxide
                 return false;
             }
             AsyncWebRequest req = new AsyncWebRequest(url);
+            webrequests.Add(req);
+            req.OnResponse += (r) =>
+            {
+                try
+                {
+                    func.Call(r.ResponseCode, r.Response);
+                }
+                catch (Exception ex)
+                {
+                    //Debug.LogError(string.Format("Error in webrequest callback: {0}", ex));
+                    Logger.Error(string.Format("Error in webrequest callback ({0})", currentplugin), ex);
+                }
+            };
+            return true;
+        }
+
+        private bool lua_PostWebRequest(string url, string postdata, LuaFunction func)
+        {
+            if (webrequests.Count > 3)
+            {
+                return false;
+            }
+            AsyncWebRequest req = new AsyncWebRequest(url, postdata);
             webrequests.Add(req);
             req.OnResponse += (r) =>
             {

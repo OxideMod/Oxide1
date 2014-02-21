@@ -13,6 +13,8 @@ namespace Oxide
     {
         private WebRequest request;
         private string url;
+        private string postdata;
+        private bool ispost;
 
         private Thread thread;
 
@@ -27,9 +29,20 @@ namespace Oxide
         public AsyncWebRequest(string url)
         {
             this.url = url;
+            this.postdata = null;
+            this.ispost = false;
             thread = new Thread(Worker);
             thread.Start();
             //Main.Log("Worker thread started...");
+        }
+
+        public AsyncWebRequest(string url, string postdata)
+        {
+            this.url = url;
+            this.postdata = postdata;
+            this.ispost = true;
+            thread = new Thread(Worker);
+            thread.Start();
         }
 
         private void Worker()
@@ -40,6 +53,20 @@ namespace Oxide
                 request = WebRequest.Create(url);
                 request.Credentials = CredentialCache.DefaultCredentials;
                 //Main.Log("Waiting for response...");
+
+                if (this.ispost == true && this.postdata != null)
+                {
+                    request.Method = "POST";
+                    byte[] bytePostData = Encoding.UTF8.GetBytes(postdata);
+
+                    request.ContentType = "application/x-www-form-urlencoded";
+                    request.ContentLength = bytePostData.Length;
+
+                    Stream postStream = request.GetRequestStream();
+                    postStream.Write(bytePostData, 0, bytePostData.Length);
+                    postStream.Close();
+                }
+
                 HttpWebResponse response = request.GetResponse() as HttpWebResponse;
                 if (response == null)
                 {
