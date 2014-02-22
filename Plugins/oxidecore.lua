@@ -6,17 +6,22 @@
 -- Define plugin variables
 PLUGIN.Title = "Oxide Core"
 PLUGIN.Description = "Abstracts many hooks into a much improved API for other plugins to use"
+PLUGIN.Author = "thomasfn"
+PLUGIN.Version = "1.15"
 
 -- Load some enums
 typesystem.LoadEnum( RustFirstPass.NetError, "NetError" )
+typesystem.LoadEnum( uLink.NetworkConnectionError, "NetworkConnectionError" )
 typesystem.LoadEnum( System.Reflection.BindingFlags, "BindingFlags" )
 typesystem.LoadEnum( RustFirstPass.LifeStatus, "LifeStatus" )
 
 -- Oxide version
-PLUGIN.OxideVersion = "Oxide 1.10"
+PLUGIN.OxideVersion = "Oxide 1.15"
+PLUGIN.RustProtocolVersion = 0x42c
 
 -- Get some other functions
 local GetTakeNoDamage, SetTakeNoDamage = typesystem.GetField( RustFirstPass.TakeDamage, "takenodamage", bf.private_instance )
+local GetEyesOrigin, SetEyesOrigin = typesystem.GetField( RustFirstPass.Character, "eyesOrigin", bf.public_instance )
 
 -- *******************************************
 -- PLUGIN:Init()
@@ -30,6 +35,10 @@ function PLUGIN:Init()
 	
 	-- Add chat commands
 	self:AddChatCommand( "mod", self.cmdMod )
+	self:AddChatCommand( "version", self.cmdMod )
+	
+	-- Declare tables
+	self.UserDict = {}
 end
 
 -- *******************************************
@@ -115,12 +124,43 @@ function PLUGIN:OnUserChat( netuser, name, msg )
 end
 
 -- *******************************************
+-- PLUGIN:OnSpawnPlayer()
+-- Called when a player spawns
+-- *******************************************
+function PLUGIN:OnSpawnPlayer( playerclient, usecamp, avatar )
+	timer.NextFrame( function() self:HandleSpawn( playerclient ) end )
+end
+function PLUGIN:HandleSpawn( playerclient )
+	local controllable = playerclient.controllable
+	local char = controllable:GetComponent( "Character" )
+	local inv = controllable:GetComponent( "Inventory" )
+	--print( "[" .. char:GetType().Name .. "] " .. tostring( char ) )
+	--print( "[" .. inv:GetType().Name .. "] " .. tostring( inv ) )
+	local data = {}
+	data.inv = inv
+	data.char = char
+	self.UserDict[ playerclient.netUser ] = data
+end
+
+-- *******************************************
+-- PLUGIN:OnUserDisconnect()
+-- Called when a player disconnects
+-- *******************************************
+function PLUGIN:OnUserDisconnect( networkplayer )
+	local netuser = networkplayer:GetLocalData()
+	if (not netuser or netuser:GetType().Name ~= "NetUser") then return end
+	self.UserDict[ netuser ] = nil
+	--print( "OnUserDisconnect: " .. tostring( netuser ) )
+end
+
+-- *******************************************
 -- PLUGIN:OnDoorToggle()
 -- Called when a user has attempted to use a door
 -- *******************************************
 local NullableOfVector3 = typesystem.MakeNullableOf( UnityEngine.Vector3 )
 local NullableOfBoolean = typesystem.MakeNullableOf( System.Boolean )
 local ToggleStateServer = util.FindOverloadedMethod( Rust.BasicDoor, "ToggleStateServer", bf.private_instance, { NullableOfVector3, System.UInt64, NullableOfBoolean } )
+local GetEyesOrigin, SetEyesOrigin = typesystem.GetProperty( RustFirstPass.Character, "eyesOrigin", bf.public_instance )
 function PLUGIN:OnDoorToggle( door, timestamp, controllable )
 	-- Sanity check
 	if (not controllable) then
@@ -130,7 +170,21 @@ function PLUGIN:OnDoorToggle( door, timestamp, controllable )
 	end
 	
 	-- Get the character and deployable
-	local charcomponent = controllable:GetComponent( "Character" )
+	--local charcomponent = controllable:GetComponent( "Character" )
+	local netuser = controllable.playerClient.netUser
+	if (not netuser) then return error( "Failed to get net user (OnDoorToggle)" ) end
+	local charcomponent = rust.GetCharacter( netuser )
+	if (not charcomponent) then return error( "Failed to get Character (OnDoorToggle)" ) end
+	--local ct = charcomponent:GetType()
+	--print( ct )
+	--[[if (ct.Name == "DamageBeing") then
+		charcomponent = charcomponent.character
+		print( "Hacky fix, " .. ct.Name .. " is now " .. charcomponent:GetType().Name )
+		if (charcomponent:GetType().Name == "DamageBeing") then
+			print( "The hacky fix didn't work, it's still a DamageBeing!" )
+			return
+		end
+	end]]
 	local deployable = door:GetComponent( "DeployableObject" )
 	local lockable = door:GetComponent( "LockableObject" )
 	
@@ -151,7 +205,12 @@ function PLUGIN:OnDoorToggle( door, timestamp, controllable )
 	if (deployable) then deployable:Touched() end
 	local origin
 	if (charcomponent) then
-		origin = charcomponent.eyesOrigin
+		if (type( charcomponent.eyesOrigin ) == "string") then
+			print( "eyesOrigin was a string! (charcomponent = " .. tostring( charcomponent ) .. " - " .. (charcomponent and charcomponent:GetType().Name or "") .. ")" )
+			origin = GetEyesOrigin( charcomponent )
+		else
+			
+		end
 	else
 		origin = controllable.transform.position
 	end
@@ -189,7 +248,8 @@ local LifeStatus_IsDead = 2
 local LifeStatus_WasKilled = 1
 local LifeStatus_Failed = -1
 function PLUGIN:OnProcessDamageEvent( takedamage, damage )
-	if (GetTakeNoDamage( takedamage )) then return true end
+	damage = plugins.Call( "ModifyDamage", takedamage, damage ) or damage
+	if (GetTakeNoDamage( takedamage )) then return damage end
 	local status = StatusIntGetter( damage )
 	--print( "==========" )
 	--print( status )
@@ -204,7 +264,7 @@ function PLUGIN:OnProcessDamageEvent( takedamage, damage )
 		--print( takedamage.health )
 		plugins.Call( "OnHurt", takedamage, damage )
 	end
-	return true
+	return damage
 end
 
 -- *******************************************
@@ -217,6 +277,100 @@ function PLUGIN:OnAirdrop( pos )
 end
 
 -- *******************************************
+-- PLUGIN:OnUserApprove()
+-- Called when a user attempts to login
+-- *******************************************
+local BanListContains = util.FindOverloadedMethod( RustFirstPass.BanList, "Contains", bf.public_static, { System.UInt64 } )
+local ConnectionUserID = typesystem.GetField( RustFirstPass.ClientConnection, "UserID", bf.public_instance, true )
+local AcceptorIsConnected = util.FindOverloadedMethod( RustFirstPass.ConnectionAcceptor, "IsConnected", bf.public_instance, { System.UInt64 } )
+--print( BanListContains )
+--print( ConnectionUserID )
+--print( AcceptorIsConnected )
+function PLUGIN:OnUserApprove( acceptor, approval )
+	--print( "OnUserApprove" )
+	if (acceptor.m_Connections.Count >= RustFirstPass.server.maxplayers) then
+		--print( "Too many players" )
+		approval:Deny( NetworkConnectionError.TooManyConnectedPlayers )
+		return true
+	end
+	local item = new( RustFirstPass.ClientConnection )
+	--print( approval.loginData )
+	--print( item )
+	local val = item:ReadConnectionData( approval.loginData )
+	--print( val )
+	if (not val) then
+		approval:Deny( NetworkConnectionError.IncorrectParameters )
+		print( "Denying entry to client with invalid parameters" )
+		return true
+	end
+	if (item.Protocol < self.RustProtocolVersion) then
+		print( "Denying entry to client with invalid protocol version (" .. approval.ipAddress .. ")" )
+		approval:Deny( NetworkConnectionError.IncompatibleVersions )
+		return true
+	end
+	local arr = newarray( System.Object, 1 )
+	util.ArraySetFromField( arr, 0, ConnectionUserID, item )
+	if (BanListContains:Invoke( nil, arr )) then
+		print( "Rejecting client (" + tostring( item.UserID ) + " in banlist)" )
+		approval:Deny( NetworkConnectionError.ConnectionBanned )
+		return true
+	end
+	if (AcceptorIsConnected:Invoke( acceptor, arr )) then
+		print( "Denying entry to " + tostring( item.UserID ) + " because they're already connected" )
+		approval:Deny( NetworkConnectionError.AlreadyConnectedToAnotherServer )
+		return true
+	end
+	local tmp = plugins.Call( "CanClientLogin", approval, item )
+	if (tmp) then
+		--print( "CanClientLogin said no" )
+		approval:Deny( tmp )
+		return true
+	end
+	--print( "Starting coroutine!" )
+	acceptor.m_Connections:Add( item )
+	acceptor:StartCoroutine( item:AuthorisationRoutine( approval ) )
+	approval:Wait()
+	
+	return true
+	
+	--[[
+    if (this.m_Connections.Count >= server.maxplayers)
+    {
+        approval.Deny(NetworkConnectionError.TooManyConnectedPlayers);
+    }
+    else
+    {
+        ClientConnection item = new ClientConnection();
+        if (!item.ReadConnectionData(approval.loginData))
+        {
+            approval.Deny(NetworkConnectionError.IncorrectParameters);
+        }
+        else if (item.Protocol < 0x42b)
+        {
+            Debug.Log("Denying entry to client with invalid protocol version (" + approval.ipAddress + ")");
+            approval.Deny(NetworkConnectionError.IncompatibleVersions);
+        }
+        else if (BanList.Contains(item.UserID))
+        {
+            Debug.Log("Rejecting client (" + item.UserID.ToString() + "in banlist)");
+            approval.Deny(NetworkConnectionError.ConnectionBanned);
+        }
+        else if (this.IsConnected(item.UserID))
+        {
+            Debug.Log("Denying entry to " + item.UserID.ToString() + " because they're already connected");
+            approval.Deny(NetworkConnectionError.AlreadyConnectedToAnotherServer);
+        }
+        else
+        {
+            this.m_Connections.Add(item);
+            base.StartCoroutine(item.AuthorisationRoutine(approval));
+            approval.Wait();
+        }
+    }
+	]]
+end
+
+-- *******************************************
 -- PLUGIN:CanClientLogin()
 -- Called when a user attempts to login
 -- *******************************************
@@ -225,9 +379,8 @@ local blacklist =
 	Oxide = true,
 	Oxmin = true
 }
-function PLUGIN:CanClientLogin( login )
-	local steamlogin = login.SteamLogin
-	if (blacklist[ steamlogin.UserName ]) then return NetError.Facepunch_Kick_BadName end
+function PLUGIN:CanClientLogin( approval, connection )
+	if (blacklist[ connection.UserName ]) then return NetworkConnectionError.ApprovalDenied end
 end
 
 -- *******************************************
@@ -257,9 +410,11 @@ end
 -- *******************************************
 function PLUGIN:ccmdReload( arg )
 	local user = arg.argUser
-	if (user and not user:CanAdmin()) then return end
-	print( "Reloading oxide core..." )
-	plugins.Reload( self.Name )
+	if (user and not user:CanAdmin()) then return true end
+	print( "Reloading core..." )
+	local result = plugins.Reload( self.Name )
+	if (not result) then print( "Reload failed." ) end
+	return true
 end
 
 -- *******************************************
@@ -268,9 +423,12 @@ end
 -- *******************************************
 function PLUGIN:ccmdReloadPlugin( arg )
 	local user = arg.argUser
-	if (user and not user:CanAdmin()) then return end
-	print( "Reloading oxide plugin..." )
-	plugins.Reload( arg:GetString( 0, "text" ) )
+	if (user and not user:CanAdmin()) then return true end
+	local name = arg:GetString( 0, "text" )
+	print( "Reloading oxide plugin '" .. name .. "'..." )
+	local result = plugins.Reload( name )
+	if (not result) then print( "Reload failed." ) end
+	return true
 end
 
 -- *******************************************
@@ -298,4 +456,15 @@ function rust.CallAirdrop( pos )
 		Rust.SupplyDropZone.CallAirDrop()
 	end
 	oxidecore.BypassAirdropHook = false
+end
+
+function rust.GetInventory( netuser )
+	local core = plugins.Find( "oxidecore" )
+	local data = core.UserDict[ netuser ]
+	if (data and data.inv) then return data.inv end
+end
+function rust.GetCharacter( netuser )
+	local core = plugins.Find( "oxidecore" )
+	local data = core.UserDict[ netuser ]
+	if (data and data.char) then return data.char end
 end
