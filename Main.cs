@@ -165,6 +165,8 @@ namespace Oxide
             RegisterFunction("cs.readfieldandsetonarray", "lua_ReadFieldAndSetOnArray");
             RegisterFunction("cs.reloadplugin", "lua_ReloadPlugin");
             RegisterFunction("cs.getdatafile", "lua_GetDatafile");
+            RegisterFunction("cs.getdatafilelist", "lua_GetDatafileList"); // LMP
+            RegisterFunction("cs.removedatafile", "lua_RemoveDatafile"); // LMP
             RegisterFunction("cs.dump", "lua_Dump");
             RegisterFunction("cs.createarrayfromtable", "lua_CreateArrayFromTable");
             RegisterFunction("cs.createtablefromarray", "lua_CreateTableFromArray");
@@ -471,6 +473,30 @@ namespace Oxide
             if (!p.Load(oldplugin.Filename)) return false;
             pluginmanager.AddPlugin(p);
             return true;
+        }
+
+        private LuaTable lua_GetDatafileList(string name)
+        {
+            if (name.Contains('.')) return null;
+            if (name.Contains('/')) return null;
+            if (name.Contains('\\')) return null;
+            var result = Datafile.List(name);
+
+            return lua_CreateTableFromArray(result);
+        }
+
+        private bool lua_RemoveDatafile(string name)
+        {
+            if (name.Contains('.')) return false;
+            if (name.Contains('/')) return false;
+            if (name.Contains('\\')) return false;
+            if (Datafile.Remove(name))
+            {
+                datafiles.Remove(name);
+                return true;
+            }
+
+            return false;
         }
 
         private Datafile lua_GetDatafile(string name)

@@ -177,6 +177,16 @@ function util.GetDatafile( name )
 	return cs.getdatafile( name )
 end
 
+-- Search data/ for name.."*.txt"
+function util.GetDatafile( name )
+	return cs.getdatafilelist( name )
+end
+
+-- Remove File
+function util.RemoveDatafile( name )
+	return cs.removedatafile( name )
+end
+
 function util.ReportError( err )
 	--print( type( err ) )
 	if (type( err ) == "string") then
