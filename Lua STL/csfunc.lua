@@ -31,11 +31,18 @@ end
 cs = {}
 for k, v in pairs( oldcs ) do
 	local function Wrapper( ... )
-		local b, res = pcall( v, ... )
+		-- http://www.lua.org/pil/8.5.html : pcall unwinds the LUA stack, xpcall doesnt
+		local b, res = xpcall( v, function(err) return debug.traceback(err) end, ... )
 		if (b) then return res end
 		local tbl = debug.getinfo( 3, "Sl" )
-		error( tbl.short_src .. ":" .. tbl.currentline .. " - A .NET exception was thrown trying to call cs." .. k .. "!" )
-		util.ReportError( res )
+		if tbl ~= nil then
+			error( tbl.short_src .. ":" .. tbl.currentline .. " - A .NET exception was thrown trying to call cs." .. k .. "!" )
+			util.ReportError( res )
+		else
+		    -- Maybe we should extend the anonymous function to push in more details using debug.info
+			error( "cs."..k.." failed with no traceback: " .. tostring(res) )
+			util.ReportError( res )
+		end
 	end
 	cs[ k ] = Wrapper
 end
