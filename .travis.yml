@@ -7,19 +7,13 @@ install: sudo apt-get install mono-devel mono-gmcs
 # Run the XBuild project file
 script: xbuild Oxide.csproj /p:Configuration=Release
 
-# Perform steps after compilation/test success
-after_success:
-  # Run deployment script
-  - "./deploy.sh"
-
 # Notification services
 notifications:
   # Disable build status email notifications, until the issue with forks is fixed
   email: false
-  # IRC notification
-  irc:
-    - "chat.freenode.net#rustoxide"
-    - "irc.esper.net#rustoxide"
+  webhooks:
+    # Send build information and status to Notifico
+    - http://n.tkte.ch/h/2216/PUTaYiuTs6r0mdt8_K1PAKGJ
 
 # Environmental system variables
 env:
