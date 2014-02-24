@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.IO;
 
@@ -17,6 +18,38 @@ namespace Oxide
         {
             filename = Main.GetPath("data/" + name + ".txt");
             Reload();
+        }
+
+        /// <summary>
+        /// Lists all partialname*.txt files in the ./data/ folder
+        /// </summary>
+        public static string[] List(string partialname)
+        {
+            // Iterate all physical plugins
+            var files1 = Directory.GetFiles(Main.GetPath("data/"), partialname + "*.txt").Select(f => Path.GetFileNameWithoutExtension(f));
+
+            return files1.ToArray();
+        }
+
+        /// <summary>
+        /// Removes a fullname.txt file from the ./data/ folder
+        /// </summary>
+        public static bool Remove(string fullname)
+        {
+            // Iterate all physical plugins
+            string fname = Main.GetPath("data/" + fullname + ".txt");
+            if (!File.Exists(fname))
+                return false;
+
+            try
+            {
+                File.Delete(fname);
+                return true;
+            }
+            catch (IOException deleteError)
+            {
+                return false;
+            }
         }
 
         /// <summary>
