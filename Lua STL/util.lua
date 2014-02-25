@@ -178,7 +178,7 @@ function util.GetDatafile( name )
 end
 
 -- Search data/ for name.."*.txt"
-function util.GetDatafile( name )
+function util.GetDatafileList( name )
 	return cs.getdatafilelist( name )
 end
 
