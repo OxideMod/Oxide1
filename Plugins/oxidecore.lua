@@ -7,21 +7,21 @@
 PLUGIN.Title = "Oxide Core"
 PLUGIN.Description = "Abstracts many hooks into a much improved API for other plugins to use"
 PLUGIN.Author = "thomasfn"
-PLUGIN.Version = "1.15"
+PLUGIN.Version = "1.16"
 
 -- Load some enums
-typesystem.LoadEnum( RustFirstPass.NetError, "NetError" )
+typesystem.LoadEnum( Rust.NetError, "NetError" )
 typesystem.LoadEnum( uLink.NetworkConnectionError, "NetworkConnectionError" )
 typesystem.LoadEnum( System.Reflection.BindingFlags, "BindingFlags" )
-typesystem.LoadEnum( RustFirstPass.LifeStatus, "LifeStatus" )
+typesystem.LoadEnum( Rust.LifeStatus, "LifeStatus" )
 
 -- Oxide version
-PLUGIN.OxideVersion = "Oxide 1.15"
-PLUGIN.RustProtocolVersion = 0x42c
+PLUGIN.OxideVersion = "Oxide 1.16"
+PLUGIN.RustProtocolVersion = 0x42d
 
 -- Get some other functions
-local GetTakeNoDamage, SetTakeNoDamage = typesystem.GetField( RustFirstPass.TakeDamage, "takenodamage", bf.private_instance )
-local GetEyesOrigin, SetEyesOrigin = typesystem.GetField( RustFirstPass.Character, "eyesOrigin", bf.public_instance )
+local GetTakeNoDamage, SetTakeNoDamage = typesystem.GetField( Rust.TakeDamage, "takenodamage", bf.private_instance )
+local GetEyesOrigin, SetEyesOrigin = typesystem.GetField( Rust.Character, "eyesOrigin", bf.public_instance )
 
 -- *******************************************
 -- PLUGIN:Init()
@@ -160,7 +160,7 @@ end
 local NullableOfVector3 = typesystem.MakeNullableOf( UnityEngine.Vector3 )
 local NullableOfBoolean = typesystem.MakeNullableOf( System.Boolean )
 local ToggleStateServer = util.FindOverloadedMethod( Rust.BasicDoor, "ToggleStateServer", bf.private_instance, { NullableOfVector3, System.UInt64, NullableOfBoolean } )
-local GetEyesOrigin, SetEyesOrigin = typesystem.GetProperty( RustFirstPass.Character, "eyesOrigin", bf.public_instance )
+local GetEyesOrigin, SetEyesOrigin = typesystem.GetProperty( Rust.Character, "eyesOrigin", bf.public_instance )
 function PLUGIN:OnDoorToggle( door, timestamp, controllable )
 	-- Sanity check
 	if (not controllable) then
@@ -242,7 +242,7 @@ end
 -- PLUGIN:OnProcessDamageEvent()
 -- Called when it's time to process a damage event
 -- *******************************************
-local StatusIntGetter = util.GetFieldGetter( RustFirstPass.DamageEvent, "status", nil, System.Int32 )
+local StatusIntGetter = util.GetFieldGetter( Rust.DamageEvent, "status", nil, System.Int32 )
 local LifeStatus_IsAlive = 0
 local LifeStatus_IsDead = 2
 local LifeStatus_WasKilled = 1
@@ -280,20 +280,20 @@ end
 -- PLUGIN:OnUserApprove()
 -- Called when a user attempts to login
 -- *******************************************
-local BanListContains = util.FindOverloadedMethod( RustFirstPass.BanList, "Contains", bf.public_static, { System.UInt64 } )
-local ConnectionUserID = typesystem.GetField( RustFirstPass.ClientConnection, "UserID", bf.public_instance, true )
-local AcceptorIsConnected = util.FindOverloadedMethod( RustFirstPass.ConnectionAcceptor, "IsConnected", bf.public_instance, { System.UInt64 } )
+local BanListContains = util.FindOverloadedMethod( Rust.BanList, "Contains", bf.public_static, { System.UInt64 } )
+local ConnectionUserID = typesystem.GetField( Rust.ClientConnection, "UserID", bf.public_instance, true )
+local AcceptorIsConnected = util.FindOverloadedMethod( Rust.ConnectionAcceptor, "IsConnected", bf.public_instance, { System.UInt64 } )
 --print( BanListContains )
 --print( ConnectionUserID )
 --print( AcceptorIsConnected )
 function PLUGIN:OnUserApprove( acceptor, approval )
 	--print( "OnUserApprove" )
-	if (acceptor.m_Connections.Count >= RustFirstPass.server.maxplayers) then
+	if (acceptor.m_Connections.Count >= Rust.server.maxplayers) then
 		--print( "Too many players" )
 		approval:Deny( NetworkConnectionError.TooManyConnectedPlayers )
 		return true
 	end
-	local item = new( RustFirstPass.ClientConnection )
+	local item = new( Rust.ClientConnection )
 	--print( approval.loginData )
 	--print( item )
 	local val = item:ReadConnectionData( approval.loginData )

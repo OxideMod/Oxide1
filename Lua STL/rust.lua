@@ -7,17 +7,17 @@ local KindFlagsType = cs.gettype( "Inventory+Slot+KindFlags, Assembly-CSharp" )
 typesystem.LoadEnum( KindType, "InventorySlotKind" )
 typesystem.LoadEnum( KindFlagsType, "InventorySlotKindFlags" )
 
-local NetUserUserID = util.GetPropertyGetter( RustFirstPass.NetUser, "userID", true )
-local userIDproperty = typesystem.TypeFromMetatype( RustFirstPass.NetUser ):GetProperty( "userID", bf.public_instance )
+local NetUserUserID = util.GetPropertyGetter( Rust.NetUser, "userID", true )
+local userIDproperty = typesystem.TypeFromMetatype( Rust.NetUser ):GetProperty( "userID", bf.public_instance )
 local DefineSlotPreferenceMethod = util.FindOverloadedMethod( cs.gettype( "Inventory+Slot+Preference, Assembly-CSharp" ), "Define", bf.public_static, { KindType, System.Boolean, KindFlagsType } )
 rust = {}
-local RustNoticeTemplate = { RustFirstPass.NetUser, "string", "number" }
+local RustNoticeTemplate = { Rust.NetUser, "string", "number" }
 function rust.Notice( netuser, text, duration )
 	duration = duration or 4.0
 	if (not validate.Args( "rust.Notice", RustNoticeTemplate, netuser, text, duration )) then return end
 	Rust.Rust.Notice.Popup( netuser.networkPlayer, "   ", text, duration or 4.0 )
 end
-local RustInventoryNoticeTemplate = { RustFirstPass.NetUser, "string" }
+local RustInventoryNoticeTemplate = { Rust.NetUser, "string" }
 function rust.InventoryNotice( netuser, text )
 	if (not validate.Args( "rust.InventoryNotice", RustInventoryNoticeTemplate, netuser, text )) then return end
 	--RustNoticePopup( netuser.networkPlayer, "   ", text, duration or 4.0 )
@@ -25,9 +25,9 @@ function rust.InventoryNotice( netuser, text )
 end
 function rust.GetAllNetUsers()
 	--local pclist = PlayerClientAll()
-	local pclist = RustFirstPass.PlayerClient.All
+	local pclist = Rust.PlayerClient.All
 	if (not pclist) then
-		error( "RustFirstPass.PlayerClient.All returned nil!" )
+		error( "Rust.PlayerClient.All returned nil!" )
 		return
 	end
 	local tbl = {}
@@ -40,7 +40,7 @@ local RustNetUserFromNetPlayerTemplate = { uLink.NetworkPlayer }
 function rust.NetUserFromNetPlayer( netplayer )
 	if (not validate.Args( "rust.NetUserFromNetPlayer", RustNetUserFromNetPlayerTemplate, netplayer )) then return end
 	--return NetUserFind( netplayer )
-	return RustFirstPass.NetUser.Find( netplayer )
+	return Rust.NetUser.Find( netplayer )
 end
 local RustFindNetUsersByName = { "string" }
 function rust.FindNetUsersByName( name )
@@ -78,9 +78,9 @@ local RustRunServerCommand = { "string" }
 function rust.RunServerCommand( cmd )
 	if (not validate.Args( "rust.RunServerCommand", RustRunServerCommand, cmd )) then return end
 	--return ConsoleSystemRun( cmd )
-	return RustFirstPass.ConsoleSystem.Run( cmd )
+	return Rust.ConsoleSystem.Run( cmd )
 end
-local RustRunClientCommand = { RustFirstPass.NetUser, "string" }
+local RustRunClientCommand = { Rust.NetUser, "string" }
 function rust.RunClientCommand( netuser, cmd )
 	if (not validate.Args( "rust.RunClientCommand", RustRunClientCommand, netuser, cmd )) then return end
 	--ConsoleNetworkerSendClientCommand( netuser.networkPlayer, cmd )
@@ -95,13 +95,13 @@ function rust.SendChatToUser( netuser, arg1, arg2 )
 		Rust.ConsoleNetworker.SendClientCommand( netuser.networkPlayer, "chat.add \"Oxide\" \"" .. util.QuoteSafe( arg1 ) .. "\"" )
 	end
 end
-local RustGetUserID = { RustFirstPass.NetUser }
+local RustGetUserID = { Rust.NetUser }
 function rust.GetUserID( netuser )
 	if (not validate.Args( "rust.GetUserID", RustGetUserID, netuser )) then return end
 	local result = NetUserUserID( netuser )
 	return tostring( result )
 end
-local RustGetLongUserID = { RustFirstPass.NetUser }
+local RustGetLongUserID = { Rust.NetUser }
 function rust.GetLongUserID( netuser )
 	if (not validate.Args( "rust.GetLongUserID", RustGetLongUserID, netuser )) then return end
 	return cs.readulongpropertyasstring( userIDproperty, netuser )
