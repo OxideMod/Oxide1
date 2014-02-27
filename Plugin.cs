@@ -109,7 +109,18 @@ namespace Oxide
                 {
                     var value = table[key];
                     if (value is LuaFunction)
-                        functionmap.Add((string)key, value as LuaFunction);
+                    {
+                        try
+                        {
+                            
+                            functionmap.Add((string)key, value as LuaFunction);
+                        }
+                        catch (Exception e)
+                        {
+                            Logger.Error(string.Format("Failed to map function {0} in {1} table.Keys", (string)key, Name));
+                        }
+                    }
+                    
                 }
             }
 
@@ -124,7 +135,17 @@ namespace Oxide
                     {
                         var value = basetable[key];
                         if (value is LuaFunction)
-                            functionmap.Add((string)key, value as LuaFunction);
+                        {
+                            try
+                            {
+                                
+                                functionmap.Add((string)key, value as LuaFunction);
+                            }
+                            catch (Exception e)
+                            {
+                                Logger.Error(string.Format("Failed to map function {0} in {1} metatable", (string)key, Name));
+                            }
+                        }
                     }
                 }
             }
