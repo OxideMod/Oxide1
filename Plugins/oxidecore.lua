@@ -209,7 +209,7 @@ function PLUGIN:OnDoorToggle( door, timestamp, controllable )
 			print( "eyesOrigin was a string! (charcomponent = " .. tostring( charcomponent ) .. " - " .. (charcomponent and charcomponent:GetType().Name or "") .. ")" )
 			origin = GetEyesOrigin( charcomponent )
 		else
-			origin = GetEyesOrigin( charcomponent ) -- LMP fixes for door swinging both ways, probably could also use charcomponent.eyesOrigin but this is safer.
+			
 		end
 	else
 		origin = controllable.transform.position
