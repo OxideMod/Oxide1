@@ -11,6 +11,13 @@ local NetUserUserID = util.GetPropertyGetter( Rust.NetUser, "userID", true )
 local userIDproperty = typesystem.TypeFromMetatype( Rust.NetUser ):GetProperty( "userID", bf.public_instance )
 local DefineSlotPreferenceMethod = util.FindOverloadedMethod( cs.gettype( "Inventory+Slot+Preference, Assembly-CSharp" ), "Define", bf.public_static, { KindType, System.Boolean, KindFlagsType } )
 rust = {}
+local RustNoticeTemplateIcon = { Rust.NetUser, "string", "string", "number" }
+function rust.NoticeIcon( netuser, text,strIcon, duration )
+duration = duration or 4.0
+strIcon = strIcon or "   "
+if (not validate.Args( "rust.NoticeIcon", RustNoticeTemplateIcon, netuser, text,strIcon, duration )) then return end
+Rust.Rust.Notice.Popup( netuser.networkPlayer, strIcon, text, duration )
+end
 local RustNoticeTemplate = { Rust.NetUser, "string", "number" }
 function rust.Notice( netuser, text, duration )
 	duration = duration or 4.0
