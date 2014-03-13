@@ -52,6 +52,8 @@ namespace Oxide
                 //Main.Log("Creating request...");
                 request = WebRequest.Create(url);
                 request.Credentials = CredentialCache.DefaultCredentials;
+                //30 Second timeout instead of 2 minutes before.
+                request.Timeout = 30000;
                 //Main.Log("Waiting for response...");
 
                 if (this.ispost == true && this.postdata != null)
@@ -96,7 +98,11 @@ namespace Oxide
                 ResponseCode = -1;
                 Logger.Error(ex.ToString());
             }
-            Complete = true;
+            finally
+            {
+                Complete = true;
+            }
+            
         }
 
         /// <summary>
