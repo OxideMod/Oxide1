@@ -14,6 +14,10 @@ function plugins.Reload( name )
 	return cs.reloadplugin( name )
 end
 
+function plugins.Load( name )
+	print("plugins.Load")
+	return cs.loadplugin( name )
+end
 api = {}
 local apibindings = {}
 function api.Bind( plugin, apiname )

@@ -31,6 +31,7 @@ function PLUGIN:Init()
 	-- Add console commands
 	self:AddCommand( "oxide", "reloadcore", self.ccmdReload )
 	self:AddCommand( "oxide", "reload", self.ccmdReloadPlugin )
+	self:AddCommand( "oxide", "load", self.ccmdLoadPlugin )
 	self:AddCommand( "chat", "say", self.ccmdChat )
 	
 	-- Add chat commands
@@ -431,6 +432,19 @@ function PLUGIN:ccmdReloadPlugin( arg )
 	return true
 end
 
+-- *******************************************
+-- PLUGIN:ccmdLoadPlugin()
+-- Called when the user executes "oxide.reload"
+-- *******************************************
+function PLUGIN:ccmdLoadPlugin( arg )
+	local user = arg.argUser
+	if (user and not user:CanAdmin()) then return true end
+	local name = arg:GetString( 0, "text" )
+	print( "Loading oxide plugin '" .. name .. "'..." )
+	local result = plugins.Load( name )
+	if (not result) then print( "Loading failed." ) end
+	return true
+end
 -- *******************************************
 -- PLUGIN:cmdMod()
 -- Called when the user executes the "/mod" chat command
