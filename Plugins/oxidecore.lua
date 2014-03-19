@@ -7,7 +7,8 @@
 PLUGIN.Title = "Oxide Core"
 PLUGIN.Description = "Abstracts many hooks into a much improved API for other plugins to use"
 PLUGIN.Author = "thomasfn"
-PLUGIN.Version = "1.16"
+PLUGIN.Version = "1.17.3"
+PLUGIN.ResourceId = "3"
 
 -- Load some enums
 typesystem.LoadEnum( Rust.NetError, "NetError" )
@@ -16,7 +17,7 @@ typesystem.LoadEnum( System.Reflection.BindingFlags, "BindingFlags" )
 typesystem.LoadEnum( Rust.LifeStatus, "LifeStatus" )
 
 -- Oxide version
-PLUGIN.OxideVersion = "Oxide 1.16"
+PLUGIN.OxideVersion = "Oxide " .. PLUGIN.Version
 PLUGIN.RustProtocolVersion = 0x42d
 
 -- Get some other functions
