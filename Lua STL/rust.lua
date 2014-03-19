@@ -13,10 +13,10 @@ local DefineSlotPreferenceMethod = util.FindOverloadedMethod( cs.gettype( "Inven
 rust = {}
 local RustNoticeTemplateIcon = { Rust.NetUser, "string", "string", "number" }
 function rust.NoticeIcon( netuser, text,strIcon, duration )
-duration = duration or 4.0
-strIcon = strIcon or "   "
-if (not validate.Args( "rust.NoticeIcon", RustNoticeTemplateIcon, netuser, text,strIcon, duration )) then return end
-Rust.Rust.Notice.Popup( netuser.networkPlayer, strIcon, text, duration )
+	duration = duration or 4.0
+	strIcon = strIcon or "   "
+	if (not validate.Args( "rust.NoticeIcon", RustNoticeTemplateIcon, netuser, text,strIcon, duration )) then return end
+	Rust.Rust.Notice.Popup( netuser.networkPlayer, strIcon, text, duration )
 end
 local RustNoticeTemplate = { Rust.NetUser, "string", "number" }
 function rust.Notice( netuser, text, duration )
