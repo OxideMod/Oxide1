@@ -62,6 +62,7 @@ namespace Oxide
 
         private HashSet<Timer> timers;
         private HashSet<AsyncWebRequest> webrequests;
+        private Queue<AsyncWebRequest> webrequestQueue;
 
         private PluginManager pluginmanager;
         public PluginManager PluginManager { get { return pluginmanager; } }
@@ -129,6 +130,7 @@ namespace Oxide
             datafiles = new Dictionary<string, Datafile>();
             timers = new HashSet<Timer>();
             webrequests = new HashSet<AsyncWebRequest>();
+            webrequestQueue = new Queue<AsyncWebRequest>();
 
             // Initialise the lua state
             lua = new Lua();
@@ -164,6 +166,7 @@ namespace Oxide
             RegisterFunction("cs.readpropertyandsetonarray", "lua_ReadPropertyAndSetOnArray");
             RegisterFunction("cs.readfieldandsetonarray", "lua_ReadFieldAndSetOnArray");
             RegisterFunction("cs.reloadplugin", "lua_ReloadPlugin");
+            RegisterFunction("cs.loadplugin", "lua_LoadPlugin");
             RegisterFunction("cs.getdatafile", "lua_GetDatafile");
             RegisterFunction("cs.getdatafilelist", "lua_GetDatafileList"); // LMP
             RegisterFunction("cs.removedatafile", "lua_RemoveDatafile"); // LMP
@@ -233,6 +236,14 @@ namespace Oxide
                 timer.Update();
 
             // Update old web requests
+            if (webrequests.Count < 3)
+            {
+                if (webrequestQueue.Count != 0 && webrequestQueue.Peek() != null)
+                {
+                    webrequests.Add(webrequestQueue.Dequeue());
+                }
+            }
+            if (webrequests.Count == 0) return;
             foreach (AsyncWebRequest req in webrequests.ToArray())
             {
                 req.Update();
@@ -467,11 +478,17 @@ namespace Oxide
         }
         private bool lua_LoadPlugin(string name)
         {
+			Logger.Message("lua_LoadPlugin: " + name );
             Plugin oldplugin = pluginmanager[name];
             if (oldplugin != null) return false;
             Plugin p = new Plugin(lua);
-            if (!p.Load(oldplugin.Filename)) return false;
+            if (!p.Load(string.Format("{0}\\{1}.lua", GetPath("plugins"),name))) return false;
             pluginmanager.AddPlugin(p);
+            p.Call("Init", null);
+            p.Call("PostInit", null);
+            p.Call("ServerStart", null);
+            p.Call("OnDatablocksLoaded", null);
+            p.Call("OnServerInitialized", null);
             return true;
         }
 
@@ -676,12 +693,8 @@ namespace Oxide
 
         private bool lua_SendWebRequest(string url, LuaFunction func)
         {
-            if (webrequests.Count > 3)
-            {
-                return false;
-            }
             AsyncWebRequest req = new AsyncWebRequest(url);
-            webrequests.Add(req);
+            webrequestQueue.Enqueue(req);
             Plugin callerplugin = Plugin.CurrentPlugin;
             req.OnResponse += (r) =>
             {
@@ -700,12 +713,8 @@ namespace Oxide
 
         private bool lua_PostWebRequest(string url, string postdata, LuaFunction func)
         {
-            if (webrequests.Count > 3)
-            {
-                return false;
-            }
             AsyncWebRequest req = new AsyncWebRequest(url, postdata);
-            webrequests.Add(req);
+            webrequestQueue.Enqueue(req);
             Plugin callerplugin = Plugin.CurrentPlugin;
             req.OnResponse += (r) =>
             {
