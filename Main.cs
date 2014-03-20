@@ -62,6 +62,7 @@ namespace Oxide
 
         private HashSet<Timer> timers;
         private HashSet<AsyncWebRequest> webrequests;
+        private Queue<AsyncWebRequest> webrequestQueue;
 
         private PluginManager pluginmanager;
         public PluginManager PluginManager { get { return pluginmanager; } }
@@ -129,6 +130,7 @@ namespace Oxide
             datafiles = new Dictionary<string, Datafile>();
             timers = new HashSet<Timer>();
             webrequests = new HashSet<AsyncWebRequest>();
+            webrequestQueue = new Queue<AsyncWebRequest>();
 
             // Initialise the lua state
             lua = new Lua();
@@ -234,6 +236,14 @@ namespace Oxide
                 timer.Update();
 
             // Update old web requests
+            if (webrequests.Count < 3)
+            {
+                if (webrequestQueue.Count != 0 && webrequestQueue.Peek() != null)
+                {
+                    webrequests.Add(webrequestQueue.Dequeue());
+                }
+            }
+            if (webrequests.Count == 0) return;
             foreach (AsyncWebRequest req in webrequests.ToArray())
             {
                 req.Update();
@@ -683,12 +693,8 @@ namespace Oxide
 
         private bool lua_SendWebRequest(string url, LuaFunction func)
         {
-            if (webrequests.Count > 3)
-            {
-                return false;
-            }
             AsyncWebRequest req = new AsyncWebRequest(url);
-            webrequests.Add(req);
+            webrequestQueue.Enqueue(req);
             Plugin callerplugin = Plugin.CurrentPlugin;
             req.OnResponse += (r) =>
             {
@@ -707,12 +713,8 @@ namespace Oxide
 
         private bool lua_PostWebRequest(string url, string postdata, LuaFunction func)
         {
-            if (webrequests.Count > 3)
-            {
-                return false;
-            }
             AsyncWebRequest req = new AsyncWebRequest(url, postdata);
-            webrequests.Add(req);
+            webrequestQueue.Enqueue(req);
             Plugin callerplugin = Plugin.CurrentPlugin;
             req.OnResponse += (r) =>
             {
