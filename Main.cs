@@ -164,6 +164,7 @@ namespace Oxide
             RegisterFunction("cs.readpropertyandsetonarray", "lua_ReadPropertyAndSetOnArray");
             RegisterFunction("cs.readfieldandsetonarray", "lua_ReadFieldAndSetOnArray");
             RegisterFunction("cs.reloadplugin", "lua_ReloadPlugin");
+            RegisterFunction("cs.loadplugin", "lua_LoadPlugin");
             RegisterFunction("cs.getdatafile", "lua_GetDatafile");
             RegisterFunction("cs.getdatafilelist", "lua_GetDatafileList"); // LMP
             RegisterFunction("cs.removedatafile", "lua_RemoveDatafile"); // LMP
@@ -467,11 +468,17 @@ namespace Oxide
         }
         private bool lua_LoadPlugin(string name)
         {
+			Logger.Message("lua_LoadPlugin: " + name );
             Plugin oldplugin = pluginmanager[name];
             if (oldplugin != null) return false;
             Plugin p = new Plugin(lua);
-            if (!p.Load(oldplugin.Filename)) return false;
+            if (!p.Load(string.Format("{0}\\{1}.lua", GetPath("plugins"),name))) return false;
             pluginmanager.AddPlugin(p);
+            p.Call("Init", null);
+            p.Call("PostInit", null);
+            p.Call("ServerStart", null);
+            p.Call("OnDatablocksLoaded", null);
+            p.Call("OnServerInitialized", null);
             return true;
         }
 
