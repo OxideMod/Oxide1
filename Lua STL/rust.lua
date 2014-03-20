@@ -57,7 +57,8 @@ function rust.FindNetUsersByName( name )
 	local tmp = {}
 	for i=1, #allnetusers do
 		local netuser = allnetusers[i]
-		if (netuser.user.Displayname:match( name )) then
+		local escapedName = string.gsub(netuser.user.Displayname, "[%-?*+%[%]%(%)]", "%%%0")
+		if (netuser.user.Displayname:match( escapedName )) then
 			tmp[ #tmp + 1 ] = netuser
 		end
 	end
