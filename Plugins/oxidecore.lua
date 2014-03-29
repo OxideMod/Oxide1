@@ -313,12 +313,12 @@ function PLUGIN:OnUserApprove( acceptor, approval )
 	local arr = newarray( System.Object, 1 )
 	util.ArraySetFromField( arr, 0, ConnectionUserID, item )
 	if (BanListContains:Invoke( nil, arr )) then
-		print( "Rejecting client (" + tostring( item.UserID ) + " in banlist)" )
+		print( "Rejecting client (" .. tostring( item.UserID ) .. " in banlist)" )
 		approval:Deny( NetworkConnectionError.ConnectionBanned )
 		return true
 	end
 	if (AcceptorIsConnected:Invoke( acceptor, arr )) then
-		print( "Denying entry to " + tostring( item.UserID ) + " because they're already connected" )
+		print( "Denying entry to " .. tostring( item.UserID ) .. " because they're already connected" )
 		approval:Deny( NetworkConnectionError.AlreadyConnectedToAnotherServer )
 		return true
 	end
