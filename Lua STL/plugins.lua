@@ -38,3 +38,9 @@ function api.Call( apiname, name, ... )
 	if (not func) then return false, "The specified api does not have that function!" end
 	return pcall( func, plugin, ... )
 end
+function api.HasFunction( apiname, name )
+	local plugin = apibindings[ apiname ]
+	if (not plugin) then return false, "No such api found!" end
+	local func = plugin[ name ]
+	if (not func) then return false, "The specified api does not have that function!" end
+end
