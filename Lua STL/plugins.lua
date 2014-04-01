@@ -43,4 +43,5 @@ function api.HasFunction( apiname, name )
 	if (not plugin) then return false, "No such api found!" end
 	local func = plugin[ name ]
 	if (not func) then return false, "The specified api does not have that function!" end
+	return true
 end
