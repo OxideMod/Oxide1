@@ -193,25 +193,26 @@ function PLUGIN:OnDoorToggle( door, timestamp, controllable )
 	--if (((deployable != null) && deployable.BelongsTo(controllable)) || (((lockable == null) || !lockable.IsLockActive()) || lockable.HasAccess(controllable)))
 	
 	-- Let plugins passively hook the Door Toggle attempt
-	plugins.Call( "OnDoorToggleAttempt", controllable.playerClient.netUser, door )
+	plugins.Call( "OnDoorToggleAttempt", netuser, door )
 	
 	-- Let plugins decide whether to permit it or not
-	local b, res = plugins.Call( "CanOpenDoor", controllable.playerClient.netUser, door )
+	local b, res = plugins.Call( "CanOpenDoor", netuser, door )
 		
 	-- No output? Perform default logic
 	local defaultoutput = (deployable and deployable:BelongsTo( controllable )) or (not lockable) or (not lockable:IsLockActive()) or lockable:HasAccess( controllable )
 	if ((b == nil and not defaultoutput) or (b ~= nil and not b)) then
-		-- Let plugins passively hook Door Toggle Failure
-		local b, res = plugins.Call( "OnDoorToggleFail", controllable.playerClient.netUser, door, res or false )
-		-- Assuming an OnDoorToggleFail script hasn't returned true, proceed with default rejection
-		if (b ~= nil and not b) then
-			rust.Notice( charcomponent.playerClient.netUser, res or "The door is locked!" )
+		-- Let plugins actively or passively hook Door Toggle Failure
+		local b2, res2 = plugins.Call( "OnDoorToggleFail", netuser, door, res )
+		-- If there are no OnDoorToggleFail() calls which have returned true (to override),
+		-- proceed with rejection, delivering either a custom returned message or the default
+		if (not b2) then
+			rust.Notice( netuser, res2 or res or "The door is locked!" )
 			return false
 		end
 	end
 	
 	-- Let plugins passively hook Door Toggle Success
-	plugins.Call( "OnDoorToggleSuccess", controllable.playerClient.netUser, door )
+	plugins.Call( "OnDoorToggleSuccess", netuser, door )
 		
 	-- Replicate the C# logic
 	if (deployable) then deployable:Touched() end
