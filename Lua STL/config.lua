@@ -22,11 +22,13 @@ function config.Read( name )
 	configfiles[ name ] = tbl
 	return false, tbl
 end
-function config.Save( name )
+function config.Save( name, options )
 	local tbl = configfiles[ name ]
 	if (not tbl) then return false end
 	local df = cs.getdatafile( "cfg_" .. name )
-	df:SetText( json.encode( tbl, { indent = true } ) )
+	if (type(options) ~= "table") then options = false end
+	df:SetText( json.encode( tbl, options or { indent = true } ) )
 	df:Save()
 	return true
 end
+`
