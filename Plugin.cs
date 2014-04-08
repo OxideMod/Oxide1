@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -117,7 +117,7 @@ namespace Oxide
                         }
                         catch (Exception e)
                         {
-                            Logger.Error(string.Format("Failed to map function {0} in {1} table.Keys", (string)key, Name));
+                            //Logger.Error(string.Format("Failed to map function {0} in {1} table.Keys", (string)key, Name));
                         }
                     }
                     
@@ -143,7 +143,7 @@ namespace Oxide
                             }
                             catch (Exception e)
                             {
-                                Logger.Error(string.Format("Failed to map function {0} in {1} metatable", (string)key, Name));
+                                //Logger.Error(string.Format("Failed to map function {0} in {1} metatable", (string)key, Name));
                             }
                         }
                     }
