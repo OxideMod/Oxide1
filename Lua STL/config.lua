@@ -31,4 +31,3 @@ function config.Save( name, options )
 	df:Save()
 	return true
 end
-`
