@@ -11,12 +11,3 @@ script: xbuild Oxide.csproj /p:Configuration=Release
 notifications:
   # Disable build status email notifications, until the issue with forks is fixed
   email: false
-  webhooks:
-    # Send build information and status to Notifico
-    - http://n.tkte.ch/h/2216/PUTaYiuTs6r0mdt8_K1PAKGJ
-
-# Environmental system variables
-env:
-  global:
-    # Make the log output cleaner
-    - TERM=dumb
