@@ -28,6 +28,12 @@ function api.Bind( plugin, apiname )
 	apibindings[ apiname ] = plugin
 	return true
 end
+function api.Unbind( apiname )
+	local plugin = apibindings[ apiname ]
+	if (not plugin) then return false, "No such api found!" end
+	plugin = nil
+	return true
+end
 function api.Exists( apiname )
 	return apibindings[ apiname ] ~= nil
 end
